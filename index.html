@@ -72,7 +72,11 @@ input[type=number]{width:84px}
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:4;background:var(--redact);color:var(--onredact);display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 14px;border-radius:2px}
 .topbar .l{font-family:var(--f-display);font-size:18px}
 .topbar .m{text-align:center;font-family:var(--f-mono);font-size:13px}
-.topbar .m b{font-size:20px;color:var(--crt-hot)}
+.topbar .m b{font-size:15px;color:var(--crt-hot)}
+.timer{display:block;font-family:var(--f-mono);font-size:clamp(40px,8vw,64px);font-weight:600;line-height:1.05;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:var(--onredact)}
+.timer.hurry{color:#FF4B3E}
+#urgentFrame{position:fixed;inset:0;border:6px solid #FF3B30;pointer-events:none;z-index:50}
+@media (prefers-reduced-motion:no-preference){#urgentFrame{animation:urg .5s steps(2) infinite}.timer.hurry{animation:urg .5s steps(2) infinite}@keyframes urg{50%{opacity:.25}}}
 .topbar .r{text-align:right}
 .topbar .r .lab{color:inherit;opacity:.7}
 .topbar .r b{font-family:var(--f-mono);font-size:22px;font-variant-numeric:tabular-nums}
@@ -205,6 +209,7 @@ details.rules h3{margin-top:14px}
   <details class="rules sheet"><summary>작전 규칙</summary><div id="rulesBody"></div></details>
 </main>
 <div id="toast" class="toast" hidden></div>
+<div id="urgentFrame" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
@@ -247,7 +252,7 @@ const CODEPOOL=['놀이터','도서관','빵집','수영장','세탁소','우체
 const SHORT=['항구','카지노','호텔','대사관','폐역','바텐더','딜러','전직 요원','기자'];
 const CB_EXTRA=['진짜','가짜','조심','가라','기다려','두더지','검은 장부','붉은 정오','증거'];
 const PH={lobby:'대기',brief:'사전 브리핑',info:'정보 단계',relay:'전달 단계',field:'현장 단계',escape:'긴급 탈출',final:'최종 보고',end:'작전 종료'};
-const PHSEC={brief:180,info:60,relay:45,field:45,escape:30,final:90};
+const PHSEC={brief:180,info:60,relay:40,field:40,escape:20};
 const EVENTS={raid:'경찰 단속 강화로 흑조가 예민해졌다 (경계도 +10)',tipster:'익명 제보자가 정보원에게 60C를 건넸다',audit:'흑조 내부 보안 점검 (발각도 +10)',calm:'흑조 간부들이 해외로 출장을 떠났다 (경계도 −8)'};
 const REC={
  fin:['당신 동료 정보원이 당신 몫을 빼돌리고 있다. 우리 쪽에 붙으면 매 라운드 80C를 보내 주지.','이 코인 메모를 읽고 있다면 거래하자. 우리와 일하면 돈 걱정은 없다.'],
@@ -330,6 +335,8 @@ const SFX={click:()=>tone(880,.045,'square',.025),
   msg:()=>{tone(1200,.06,'sine',.06);tone(1600,.09,'sine',.06,.08)},
   phase:()=>{tone(523,.12,'sine',.05);tone(784,.18,'sine',.05,.1)},
   alert:()=>{for(let i=0;i<3;i++)tone(900,.22,'sawtooth',.045,i*.3,450)},
+  beep:()=>tone(1320,.09,'square',.06),
+  beep2:()=>{tone(1560,.08,'square',.08);tone(1560,.08,'square',.08,.14)},
   end:()=>{tone(130,.45,'triangle',.12);tone(98,.7,'triangle',.1,.18)}};
 function sfx(n){if(!soundOn)return;try{SFX[n]&&SFX[n]()}catch(e){}}
 function sndLabel(){const b=document.getElementById('snd');if(b)b.textContent=soundOn?'소리 켜짐':'소리 꺼짐'}
@@ -363,7 +370,7 @@ function newGame(keep){
 }
 const LOG=e=>G.cur.push(e);
 function flash(role,m){G.flash[role]={n:G.flSeq++,m}}
-function setPhase(ph){G.ph=ph;G.pe=Date.now();G.tk=0;G.rdy=readyNow()}
+function setPhase(ph){G.ph=ph;G.pe=Date.now();G.pd=PHSEC[ph]||0;G.tk=0;G.rdy=readyNow()}
 function foundSet(){return new Set(G.cl.map(c=>c[0]))}
 function remaining(f){const s=foundSet();for(const i of G.lost)s.add(i);return CLUES.map((c,i)=>i).filter(i=>!s.has(i)&&f(i))}
 function makeIntel(arc,acc,from){
@@ -440,12 +447,14 @@ function coinTick(big){
 const NUMWORDS=['하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉','열','스물','서른','마흔','쉰','백','천','만','일','이','삼','사','오','육','칠','팔','구','십'];
 function numCount(t){const d=(t.match(/[0-9０-９]+/g)||[]).length;const toks=t.split(/[^0-9A-Za-z가-힣]+/).filter(Boolean);return d+toks.filter(w=>NUMWORDS.includes(w)).length}
 function marketNames(t){const n=t.replace(/\s/g,'');return STOCKS.concat(COINS).map(x=>x.n).filter(x=>n.includes(x))}
-function scoreMsg(t,strict){
+function scoreMsg(t,mode){
   const norm=t.replace(/\s/g,'');let sc=0;
-  for(const w of BANNED)if(norm.includes(w))sc+=strict?25:20;
+  if(mode==='light'){for(const w of BANNED)if(norm.includes(w))sc+=5;for(const w of G.leaked)if(norm.includes(w.replace(/\s/g,'')))sc+=10;return sc}
+  for(const w of BANNED)if(norm.includes(w))sc+=25;
   for(const w of G.leaked)if(norm.includes(w.replace(/\s/g,'')))sc+=25;
-  if(strict){sc+=numCount(t)*10;sc+=marketNames(t).length*15;if(t.length>30)sc+=5}
-  else if(t.length>40)sc+=5;
+  sc+=numCount(t)*10;if(t.length>40)sc+=5;
+  G.alias=G.alias||{};for(const code of [...new Set(cbOf().map(x=>x[1]))]){if(!code||!norm.includes(code.replace(/\s/g,'')))continue;
+    if(G.alias[code]!==undefined&&G.alias[code]>=G.rd-1)sc+=15;G.alias[code]=G.rd}
   const ws=[...new Set(t.split(/[^0-9A-Za-z가-힣]+/).filter(w=>w.length>=2))];
   for(const w of ws){const h=G.words[w]||[];if(!h.includes(G.rd))h.push(G.rd);G.words[w]=h.slice(-4);
     if(h.includes(G.rd-1)&&h.includes(G.rd-2))sc+=10}
@@ -469,7 +478,8 @@ function doAction(role,a){
     if(amt>G.cash.fin)return flash('fin','현금이 부족합니다');G.cash.fin-=amt;G.cash[to]+=amt;if(to==='inf')G.infPaid+=amt;
     if(to==='spy'){G.tap+=8;G.spyPaid+=amt;flash('spy',`은행 계좌로 ${amt}C 입금`)}else flash('inf',`자금책이 ${amt}C를 보냈다`);
     flash('fin',`${ROLES[to].n}에게 ${amt}C 송금${to==='spy'?' · 은행 기록이 남음':''}`);return}
-  if(k==='job'){if(role!=='fin'||!inRound)return;if(G.jobDone)return flash('fin','아르바이트는 라운드당 한 번입니다');G.jobDone=true;
+  if(k==='job'||k==='smb'||k==='sms'||k==='gam')return;
+  if(k==='job_removed'){if(role!=='fin'||!inRound)return;if(G.jobDone)return flash('fin','아르바이트는 라운드당 한 번입니다');G.jobDone=true;
     const amt=a.j==='risk'?20+Math.floor(rnd()*121):50;G.cash.fin+=amt;flash('fin',`${a.j==='risk'?'대리운전':'편의점 야간 알바'}로 ${amt}C를 벌었다`);return}
   if(k==='smb'||k==='sms'){if(role!=='fin'||!inRound)return;const g=GOODS[a.it]?a.it:null;if(!g)return;const m=G.smug[g];let q=clamp(int(a.q),1,SMUG_LIM);
     if(k==='smb'){q=Math.min(q,SMUG_LIM-m.b,Math.floor(G.cash.fin/m.bp));if(q<1)return flash('fin',m.b>=SMUG_LIM?`이번 라운드 ${GOODS[g].n} 구매 한도(${SMUG_LIM}${GOODS[g].u})를 채웠습니다`:'현금이 부족합니다');
@@ -482,7 +492,7 @@ function doAction(role,a){
     if(gm==='oe')mult=r<.48?2:0;else if(gm==='dice')mult=r<1/6?5:0;else mult=r<.04?15:r<.2?2:0;
     const win=bet*mult;G.cash.fin+=win;flash('fin',mult?`${GAMES[gm].n} 승리! ${bet}C 걸고 ${win}C를 받았다`:`${GAMES[gm].n} 패배. ${bet}C를 잃었다`);return}
   if(k==='fs'){if((role!=='fin'&&role!=='spy')||!inRound)return;const t=clean(a.t,80);if(!t)return;
-    checkWord(role,t);G.tap+=scoreMsg(t,true);G.fs.push({w:role,t,rd:G.rd});G.fs=G.fs.slice(-8);flash(role==='fin'?'spy':'fin',`현장 회선: ${t.slice(0,30)}`);return}
+    checkWord(role,t);G.tap+=scoreMsg(t,'field');G.fs.push({w:role,t,rd:G.rd});G.fs=G.fs.slice(-8);flash(role==='fin'?'spy':'fin',`현장 회선: ${t.slice(0,30)}`);return}
   if(k==='bm'){if(role!=='inf'||ph!=='info')return;const t=BM[int(a.t)];const arc=ARCS[a.arc]?a.arc:null;if(!t||!arc)return;
     if(G.cash.inf<t.c)return flash('inf','자금이 부족합니다');
     const it=makeIntel(arc,t.a,'bm');if(!it)return flash('inf',`${ARCS[arc].n} 사건의 진짜 증거는 이미 모두 확보했습니다`);
@@ -504,7 +514,7 @@ function doAction(role,a){
     else if(role==='spy'){if(ph!=='relay'&&ph!=='field')return;if(G.repN>=1)return flash('spy','이번 라운드 답장을 이미 보냈습니다');G.repN++}
     else return;
     if(role==='inf'&&BANNED.some(w=>t.replace(/\s/g,'').includes(w)))misDone('inf','noisy');checkWord(role,t);
-    G.tap+=scoreMsg(t);G.msgs.push({w:role,t,rd:G.rd});G.msgs=G.msgs.slice(-6);return}
+    G.tap+=scoreMsg(t,'field');G.msgs.push({w:role,t,rd:G.rd});G.msgs=G.msgs.slice(-6);return}
   if(k==='memo'){if(ph!=='brief'||!ROLES[role])return;G.memo[role]=typeof a.t==='string'?a.t.replace(/[\u0000-\u0008\u000b-\u001f]/g,'').slice(0,400):'';return}
   if(k==='cb'){if(ph!=='brief')return;
     if(a.op==='add'){const pl=clean(a.p,10),c=clean(a.c,10);if(!pl||!c)return;if(G.cb.some(x=>x[1]===c))return flash(role,`"${c}"는 이미 쓰는 암호입니다`);
@@ -515,7 +525,7 @@ function doAction(role,a){
       for(const pl of CB_EXTRA){if(!G.cb.some(x=>x[0]===pl)&&pool.length)G.cb.push([pl,pool.pop()])}G.cb=G.cb.slice(0,40);return}
     return}
   if(k==='hq'){if((role!=='inf'&&role!=='fin')||!inRound)return;const t=clean(a.t,120);if(!t)return;
-    checkWord(role,t);G.tap+=scoreMsg(t,true);G.hq.push({w:role,t,rd:G.rd});G.hq=G.hq.slice(-10);flash(role==='inf'?'fin':'inf',`본부 회선: ${t.slice(0,30)}`);return}
+    checkWord(role,t);G.tap+=scoreMsg(t,'light');G.hq.push({w:role,t,rd:G.rd});G.hq=G.hq.slice(-10);flash(role==='inf'?'fin':'inf',`본부 회선: ${t.slice(0,30)}`);return}
   if(k==='fx'){if(role!=='inf'||!inRound)return;const e=G.cl.find(c=>c[0]===int(a.i));if(!e||e[1])return;if(G.cash.inf<40)return flash('inf','자금이 부족합니다');
     G.cash.inf-=40;e[1]=CLUES[e[0]].r?1:2;flash('inf',`포렌식 결과: ${CLUES[e[0]].t} → ${CLUES[e[0]].r?'진본':'가짜'}`);return}
   if(k==='esc'){if(role!=='inf'||ph!=='escape')return;const m=int(a.m);if(!TRANS[m])return;if(G.cash.inf<TRANS[m].c)return flash('inf','자금이 부족합니다. 자금책에게 긴급 송금을 받으세요');
@@ -638,7 +648,7 @@ function finish(){
   G.end=Object.assign(endExtra(),{k,fk,sc,r:R,nw:netWorth(),tg,vo,pe,trap2,m:-1});G.ph='end';
 }
 function viewOf(){
-  const v={};for(const k of['gen','gid','ph','rd','T','pe','tk','cb','memo','test','al','ex','ac','sp','cp','dead','cl','lg','seats','on','rdy','end','fl','esc'])v[k]=G[k];
+  const v={};for(const k of['gen','gid','ph','rd','T','pe','pd','tk','cb','memo','test','al','ex','ac','sp','cp','dead','cl','lg','seats','on','rdy','end','fl','esc'])v[k]=G[k];
   v.nk=Object.entries(G.nk);v.wt=G.wt||[];v.lk=G.ph==='end'?G.leaked:[];v.tr=G.tr.map(t=>({rd:t.rd,t:t.del?'로그 일부가 삭제됨':t.t,s:t.del?[]:t.s,del:t.del}));v.cf=G.conf;return v;
 }
 function pvOf(role){
@@ -685,12 +695,13 @@ function readyNow(){
 }
 function advance(){
   if(!G||G.ph==='lobby'||G.ph==='end')return;const now=Date.now();G.rdy=readyNow();const allReady=['fin','inf','spy'].every(r=>G.rdy[r]);const el=(now-G.pe)/1000;
-  if(G.ph==='brief'){if(allReady)startRound()}
-  else if(G.ph==='info'){const want=Math.min(3,Math.floor(el/20));while(G.tk<want){G.tk++;coinTick(false)}
-    if(allReady)setPhase('relay')}
-  else if(G.ph==='relay'){if(allReady)setPhase('field')}
-  else if(G.ph==='field'){if(allReady)resolveRound()}
-  else if(G.ph==='escape'){if(!G.on.inf)resolveEscape(0)}
+  const due=G.pd>0&&el>=G.pd;
+  if(G.ph==='brief'){if(due||allReady)startRound()}
+  else if(G.ph==='info'){const want=Math.min(2,Math.floor(el/20));while(G.tk<want){G.tk++;coinTick(false)}
+    if(due||allReady)setPhase('relay')}
+  else if(G.ph==='relay'){if(due||allReady)setPhase('field')}
+  else if(G.ph==='field'){if(due||allReady)resolveRound()}
+  else if(G.ph==='escape'){if(due||!G.on.inf)resolveEscape(0)}
   else if(G.ph==='final'){const voted=['fin','inf','spy'].every(r=>G.votes[r]||!G.on[r]);if(voted&&(G.rep||!G.on.inf))finish()}
 }
 function publish(){
@@ -701,8 +712,8 @@ function publish(){
   off=0;const mr=Object.keys(G.seats).find(r=>G.seats[r]===myPeer)||null;
   const pch=setP(mr?pvOf(mr):null,true);if(!setV(v,true)&&pch)render();
 }
-function hostStart(){if(!['fin','inf','spy'].some(r=>G.on[r])){toast('최소 한 역할은 맡아야 시작할 수 있습니다');return}G.test=!['fin','inf','spy'].every(r=>G.on[r]);G.words={};startRound();hostTick()}
-function hostRestart(){const t=G.test;G=newGame(G);G.test=t;G.words={};startRound();hostTick()}
+function hostStart(){if(!['fin','inf','spy'].some(r=>G.on[r])){toast('최소 한 역할은 맡아야 시작할 수 있습니다');return}G.test=!['fin','inf','spy'].every(r=>G.on[r]);startBrief();hostTick()}
+function hostRestart(){const t=G.test;G=newGame(G);G.test=t;startBrief();hostTick()}
 
 /* ================= 네트워크 (PeerJS · 로그인 불필요) ================= */
 const PFX='hjz7-';
@@ -731,8 +742,15 @@ function tick(){
   if(mode==='host'&&G&&G.ph!=='lobby'&&G.ph!=='end'){advance();publish()}
   updateTimers();
 }
+let lastBeep=-1;
+function timeLeft(){if(!V||!V.pd)return null;return Math.max(0,Math.ceil((V.pe+V.pd*1000-(Date.now()-off))/1000))}
 function updateTimers(){
-  const ct=$('#coinT');if(ct&&V&&V.ph==='info'){if((V.tk||0)>=3)ct.textContent='이번 라운드 변동 끝';else{const el=(Date.now()-off-V.pe)/1000;ct.textContent=Math.max(0,Math.ceil(20-el%20))+'초'}}
+  const ct=$('#coinT');if(ct&&V&&V.ph==='info'){const el=(Date.now()-off-V.pe)/1000;ct.textContent=el>=40?'라운드 끝에 한 번 더':Math.max(0,Math.ceil(20-el%20))+'초'}
+  const left=timeLeft();const urgent=left!==null&&left<=10&&(mode==='host'||mode==='guest');
+  document.querySelectorAll('.timer').forEach(t=>{t.textContent=left===null?'':`${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`;t.classList.toggle('hurry',urgent)});
+  const fr=document.getElementById('urgentFrame');if(fr)fr.hidden=!urgent;
+  if(urgent&&left!==lastBeep&&left>0){lastBeep=left;sfx(left<=3?'beep2':'beep')}
+  if(!urgent)lastBeep=-1;
 }
 async function enterLobby(nick){
   me.nick=nick;try{localStorage.setItem('bs-nick',nick)}catch(e){}
@@ -794,7 +812,7 @@ function onGuestData(id,conn,d){
 function chatTag(role,w){return role&&G&&G.ph!=='lobby'?`${w} · ${ROLES[role].n}`:w}
 function hostChatIn(role,nick,m,fromId){
   let w=chatTag(role,nick);
-  if(G&&['info','relay','field','escape'].includes(G.ph)){checkWord(role,m);const sc=scoreMsg(m,true);G.tap+=sc;if(sc)w+=' ⚠';}
+  if(G&&['info','relay','field','escape'].includes(G.ph)){checkWord(role,m);const sc=scoreMsg(m,'light');G.tap+=sc;if(sc)w+=' ⚠';}
   if(fromId){chatLog.push({w,m});chatLog=chatLog.slice(-60);renderChat()}
   for(const[oid,o]of conns)if(oid!==fromId)safeSend(o.conn,{t:'chat',w,m});
   if(G)hostTick();
@@ -887,7 +905,7 @@ function renderRoom(app){
   const ready=['fin','inf','spy'].every(r=>V.on[r]);
   app.innerHTML=`<div class="grid"><section class="sheet"><div class="row between"><div><span class="lab">작전실 대기</span><h2>역할을 고르세요</h2></div>
     <button class="ghost" onclick="leaveRoom()">${mode==='host'?'작전실 닫기':'나가기'}</button></div>${seatCards()}
-    ${mode==='host'?`<div class="row"><button class="red" id="startB" ${['fin','inf','spy'].some(r=>V.on[r])?'':'disabled'}>${ready?'작전 개시':'테스트 모드로 시작'}</button><span class="note">${ready?'모두 준비됐습니다.':'빈 역할이 있으면 테스트 모드로 진행됩니다. 빈 자리는 아무 행동도 하지 않고 늘 완료로 처리되며, 게임 중에 호스트가 역할을 바꿔 가며 볼 수 있습니다.'}</span></div>`:'<p class="note">호스트가 작전을 개시할 때까지 기다리세요. 역할을 맡지 않으면 관전자로 참여합니다.</p>'}</section>
+    ${mode==='host'?`<div class="row"><button class="red" id="startB" ${['fin','inf','spy'].some(r=>V.on[r])?'':'disabled'}>${ready?'사전 브리핑 시작':'테스트 모드로 시작'}</button><span class="note">${ready?'모두 준비됐습니다.':'빈 역할이 있으면 테스트 모드로 진행됩니다. 빈 자리는 아무 행동도 하지 않고 늘 완료로 처리되며, 게임 중에 호스트가 역할을 바꿔 가며 볼 수 있습니다.'}</span></div>`:'<p class="note">호스트가 브리핑을 시작할 때까지 기다리세요. 역할을 맡지 않으면 관전자로 참여합니다.</p>'}</section>
     <div class="col">${hostPanel()}${chatSheet('대기실 채팅')}</div></div>`;
   const s=$('#startB');if(s)s.onclick=hostStart;bindHost();bindChat();
 }
@@ -895,23 +913,20 @@ function chatSheet(title,note){const ok=canChat();return`<section class="sheet">
   <form id="chatF" class="row"><input id="chatIn" type="text" maxlength="140" placeholder="${ok?'메시지':'관전자는 채팅할 수 없습니다'}" style="flex:1 1 160px" aria-label="메시지" ${ok?'':'disabled'}><button type="submit" class="ghost" ${ok?'':'disabled'}>전송</button></form></section>`}
 function bindChat(){const f=$('#chatF');if(f)f.onsubmit=e=>{e.preventDefault();sendChat()};renderChat()}
 function renderChat(){const b=$('#chatBox');if(!b)return;b.innerHTML=chatLog.length?chatLog.map(c=>`<div><b>${esc(c.w)}</b> ${esc(c.m)}</div>`).join(''):'<span class="note">아직 교신이 없습니다.</span>';b.scrollTop=b.scrollHeight}
-const TM='';
+const TM='<span class="timer"></span>';
 function renderBrief(app){
   const rd=V.rdy||{};const role=myRole();const cb=cbOf();
-  app.innerHTML=`<div class="grid"><div class="col"><section class="sheet"><div class="row between"><div><span class="lab">안가 · 감청 없음</span><h2>사전 브리핑 · 암호장 만들기</h2></div>
-    ${role?`<button class="red" onclick="markReady()" ${rd[role]?'disabled':''}>${rd[role]?'준비 완료':'브리핑 끝'}</button>`:''}</div>
-    <div class="col" style="gap:8px"><span class="lab">공용 암호 메모장 · 각자 자기 칸에 적고, 게임 중에도 셋 다 볼 수 있습니다</span>
-     <div class="memo">${Object.keys(ROLES).map(r=>`<div class="pad"><span class="lab">${ROLES[r].n}${V.seats[r]?' · '+esc(nickOf(V.seats[r])):''}${r===role?' (나)':''}</span>${r===role?`<textarea id="memoMe" maxlength="400" placeholder="예) 놀이터 = 카지노&#10;빨간 우산 = 진짜 증거&#10;비 온다 = 조심해&#10;숫자는 거꾸로 읽기" aria-label="내 메모">${esc(memoOf(r))}</textarea><span class="note">입력하면 바로 저장·공유됩니다 (400자)</span>`:`<div class="txt">${esc(memoOf(r))||'<span class="note">(아직 비어 있음)</span>'}</div>`}</div>`).join('')}</div></div>
-    <p>게임이 시작되면 현장 메신저는 <b>경찰 감청 AI</b>가 읽습니다. 원래 단어와 암호를 짝지어 <b>암호장</b>에 적어 두세요. 암호장은 게임 내내 정보원과 현장 요원 화면에 떠 있어서 외울 필요가 없습니다.</p>
-    <div class="row"><button class="ghost" onclick="sendAct({k:'cb',op:'auto'})">추천 암호장 자동으로 채우기</button><span class="note">장소·인물마다 암호 2개씩, 자주 쓰는 말까지 채워 줍니다.</span></div>
-    <form id="cbF" class="row"><input id="cbP" type="text" maxlength="10" placeholder="원래 단어 (예: 카지노)" style="flex:1 1 130px" aria-label="원래 단어"><input id="cbC" type="text" maxlength="10" placeholder="암호 (예: 놀이터)" style="flex:1 1 130px" aria-label="암호"><button type="submit">추가</button></form>
-    <div class="tbl"><table><thead><tr><th>원래 단어</th><th>암호</th><th></th></tr></thead><tbody>${cb.length?cb.map((x,i)=>`<tr><td>${esc(x[0])}</td><td><b>${esc(x[1])}</b></td><td><button class="ghost sm" onclick="sendAct({k:'cb',op:'del',i:${i}})" aria-label="삭제">삭제</button></td></tr>`).join(''):'<tr><td colspan="3" class="mute">아직 비어 있습니다. 자동으로 채우거나 직접 추가하세요.</td></tr>'}</tbody></table></div>
-    <p class="note">같은 단어에 암호를 두 개 이상 두면, 게임 중 변환 버튼이 최근에 안 쓴 쪽을 골라 줘서 "3라운드 연속 같은 단어" 감점을 피할 수 있습니다. 암호장은 브리핑이 끝나면 잠깁니다.</p>
-    <div><span class="lab">감청 금지어 · 원문을 쓰면 단어당 +20</span><div class="words" style="margin-top:6px">${BANNED.map(w=>`<span>${w}</span>`).join('')}</div></div>
+  app.innerHTML=`<div class="col"><div class="topbar"><div class="l">안가 · 감청 없음</div><div class="m">${TM}<b>사전 브리핑</b> · 은어 매핑</div><div class="r">${role?`<button class="${rd[role]?'ghost':'red'} sm" style="${rd[role]?'color:inherit;border-color:currentColor':''}" onclick="markReady()" ${rd[role]?'disabled':''}>${rd[role]?'준비 완료':'브리핑 끝'}</button>`:''}</div></div>
+   <div class="grid"><div class="col"><section class="sheet"><span class="lab">은어 매핑 · 3분</span><h2>장소와 인물에 은어를 붙이세요</h2>
+    <p>게임이 시작되면 현장 메신저는 경찰이 <b>빡빡하게 감청</b>합니다. 지금 셋이서 장소·인물마다 은어를 정해 두세요. 게임 중에는 이 표를 볼 수 있지만, 자동 변환이나 해독은 없습니다.</p>
+    <p class="note"><b>주의</b>: 같은 은어를 현장 메신저에서 연속으로(이번 라운드에 두 번, 또는 지난 라운드에 이어 또) 쓰면 패턴 감청 +15. 은어를 여러 개 정해 두고 바꿔 부르세요. 즉석에서 새 은어를 지어내도 되지만, 상대가 알아들을지는 장담 못 합니다.</p>
+    <form id="cbF" class="row"><input id="cbP" type="text" maxlength="10" placeholder="원래 단어 (예: 카지노)" style="flex:1 1 130px" aria-label="원래 단어"><input id="cbC" type="text" maxlength="10" placeholder="은어 (예: 놀이터)" style="flex:1 1 130px" aria-label="은어"><button type="submit">추가</button></form>
+    <div class="tbl"><table><thead><tr><th>원래 단어</th><th>은어</th><th></th></tr></thead><tbody>${cb.length?cb.map((x,i)=>`<tr><td>${esc(x[0])}</td><td><b>${esc(x[1])}</b></td><td><button class="ghost sm" onclick="sendAct({k:'cb',op:'del',i:${i}})">삭제</button></td></tr>`).join(''):'<tr><td colspan="3" class="mute">아직 비어 있습니다.</td></tr>'}</tbody></table></div>
+    <div><span class="lab">은어가 필요한 장소와 인물</span><div class="words" style="margin-top:6px">${SRC.map(w=>`<span>${w}</span>`).join('')}</div></div>
+    <div><span class="lab">현장 메신저 금지어</span><div class="words" style="margin-top:6px">${BANNED.map(w=>`<span>${w}</span>`).join('')}</div></div>
     <div class="row">${Object.keys(ROLES).map(r=>`<span class="pill ${rd[r]?'ok':'wait'}">${ROLES[r].n} ${rd[r]?'준비':'논의 중'}</span>`).join('')}</div></section></div>
-    <div class="col">${chatSheet('안가 채팅')}</div></div>`;
+    <div class="col">${chatSheet('안가 채팅 · 감청 없음')}</div></div></div>`;
   bindChat();
-  const mm=$('#memoMe');if(mm)mm.oninput=memoInput;
   const f=$('#cbF');if(f)f.onsubmit=e=>{e.preventDefault();const p=clean($('#cbP').value,10),c=clean($('#cbC').value,10);if(!p||!c)return toast('두 칸을 모두 채우세요');sendAct({k:'cb',op:'add',p,c});$('#cbP').value='';$('#cbC').value='';$('#cbP').focus()};
 }
 function spark(arr,w=300,h=70){
@@ -925,7 +940,7 @@ function chgOf(arr){if(arr.length<2)return[0,''];const a=arr[arr.length-2],b=arr
 function topbar(){
   const role=myRole();
   return`<div class="topbar"><div class="l">${role?ROLES[role].n:'관전'}<div class="note" style="color:inherit;opacity:.7">${esc(me.nick)}</div></div>
-   <div class="m">라운드 ${Math.min(V.rd,V.T)}/${V.T}<br><b>${PH[V.ph]}</b> · 완료 ${Object.values(V.rdy||{}).filter(Boolean).length}/3${V.test&&mode==='host'?`<div class="row" style="justify-content:center;gap:4px;margin-top:4px"><span style="opacity:.7">테스트 · 역할 전환</span>${['fin','inf','spy'].map(r=>`<button class="sm ${role===r?'red':'ghost'}" style="${role===r?'':'color:inherit;border-color:currentColor'}" onclick="wantRole('${r}')" ${role===r||(V.on[r]&&V.seats[r]!==myPeer)?'disabled':''}>${ROLES[r].n}</button>`).join('')}</div>`:''}</div>
+   <div class="m">${TM}<b>${PH[V.ph]}</b> · 라운드 ${Math.min(V.rd,V.T)}/${V.T} · 완료 ${Object.values(V.rdy||{}).filter(Boolean).length}/3${V.test&&mode==='host'?`<div class="row" style="justify-content:center;gap:4px;margin-top:4px"><span style="opacity:.7">테스트 · 역할 전환</span>${['fin','inf','spy'].map(r=>`<button class="sm ${role===r?'red':'ghost'}" style="${role===r?'':'color:inherit;border-color:currentColor'}" onclick="wantRole('${r}')" ${role===r||(V.on[r]&&V.seats[r]!==myPeer)?'disabled':''}>${ROLES[r].n}</button>`).join('')}</div>`:''}</div>
    <div class="r">${role?`<span class="lab">내 자금</span><br><b>${P?fmt(P.cash):'—'}C</b>`:`<span class="lab">관전 중</span><br><b style="font-size:16px">${(V.wt||[]).length}명 관전</b>`}</div></div>`;
 }
 function meterH(l,v,hot,sub){return`<div class="meter"><span class="lab">${l}</span><span class="v">${v}</span><div class="bar"><i class="${hot?'hot':''}" style="width:${clamp(v,0,100)}%"></i></div><span class="note">${sub}</span></div>`}
@@ -1014,7 +1029,7 @@ function traceSheet(){
 }
 
 /* ================= 암호장 ================= */
-function cbOf(){return V&&Array.isArray(V.cb)?V.cb:[]}
+function cbOf(){if(typeof G!=='undefined'&&G&&mode!=='guest'&&Array.isArray(G.cb))return G.cb;return V&&Array.isArray(V.cb)?V.cb:[]}
 function recentWords(){const w=new Set();if(P&&P.msgs)for(const m of P.msgs)if(m.w==='inf'&&m.rd>=V.rd-2)m.t.split(/[^0-9A-Za-z가-힣]+/).forEach(x=>x&&w.add(x));return w}
 function encode(t){
   const cb=cbOf();const by={};for(const[p,c]of cb)(by[p]=by[p]||[]).push(c);
@@ -1030,7 +1045,7 @@ function decodeHTML(t){
   return t.split(/(\u0001\d+\u0002)/).map(seg=>{const m=seg.match(/^\u0001(\d+)\u0002$/);return m?`<b>${esc(toks[+m[1]][1])}</b>`:esc(seg)}).join('');
 }
 function bannedIn(t){const n=t.replace(/\s/g,'');return BANNED.filter(w=>n.includes(w))}
-function cbList(dark){const cb=cbOf();if(!cb.length)return`<span class="${dark?'dim':'note'}">브리핑 때 만든 암호장이 없습니다.</span>`;
+function cbList(dark){const cb=cbOf();if(!cb.length)return`<span class="${dark?'dim':'note'}">브리핑 때 정한 은어가 없습니다.</span>`;
   const by={};for(const[p,c]of cb)(by[p]=by[p]||[]).push(c);
   return`<div class="words">${Object.keys(by).map(p=>`<span>${esc(p)} = ${by[p].map(esc).join(' / ')}</span>`).join('')}</div>`}
 function msgPreview(){
@@ -1058,7 +1073,7 @@ function renderPlay(app){
   else if(role==='fin')body=finUI();else if(role==='inf')body=infUI();else body=spyUI();
   const side=role==='inf'?`<div class="grid"><div class="col">${daPanel()}${logSheet()}</div><div class="col">${traceSheet()}${hostPanel()}</div></div>`
     :`<div class="grid"><div class="col">${dossier(false)}${traceSheet()}</div><div class="col">${daPanel()}${logSheet()}${hostPanel()}</div></div>`;
-  app.innerHTML=`<div class="col">${topbar()}${statusBar()}${body}${side}${chatSheet('전체 채팅 · 엄격 감청','모든 참가자가 봅니다. 자금책도 듣는 회선이라 금융 감시까지 붙습니다. 금지어 +25, 숫자 +10, 종목·코인 이름 +15 (⚠ 표시).')}</div>`;
+  app.innerHTML=`<div class="col">${topbar()}${statusBar()}${body}${side}${chatSheet('전체 채팅 · 느슨한 감청','모든 참가자가 봅니다. 감청이 느슨해서 금지어만 +5 (⚠ 표시). 신나게 떠들고 서로 의심하세요.')}</div>`;
   bindHost();bindDA();bindRole();bindChat();
 }
 /* 관전자 */
@@ -1087,16 +1102,9 @@ function finUI(){
      <div class="strade"><span class="lab">보유</span><span class="big">${P.ch[i]}개</span><span class="note">평가 ${fmt(P.ch[i]*p)}C</span>
       <input id="qc${i}" type="number" min="1" value="1" aria-label="${c.n} 수량"><div class="row"><button class="buy sm" ${canTrade&&!dead?'':'disabled'} onclick="trade('cbuy',${i},'qc${i}')">매수</button><button class="sell sm" ${canTrade&&!dead?'':'disabled'} onclick="trade('csell',${i},'qc${i}')">매도</button></div></div></div>`}).join('');
   const inRound=['info','relay','field','escape'].includes(ph);
-  if(finTab==='smug')cards=`<p class="note">라운드마다 도매가와 소매가가 바뀝니다. 한 품목당 라운드에 사고팔 수 있는 양은 각각 ${SMUG_LIM}개까지. 매매 단계와 상관없이 라운드 중 언제든 거래할 수 있습니다.</p>`+Object.keys(GOODS).map(k=>{const g=GOODS[k],m=P.smug[k];const gap=m.sp-m.bp;
-    return`<div class="scard"><div class="col" style="gap:4px;min-width:0"><div class="sname">${g.n}</div><div class="row"><span>들여오는 값 <b class="mono">${m.bp}C</b></span><span>파는 값 <b class="mono">${m.sp}C</b></span><span class="chg ${gap>=0?'up':'down'}">${gap>=0?'+':''}${gap}C/${g.u}</span></div>
-     <span class="note">이번 라운드 구매 ${m.b}/${SMUG_LIM} · 판매 ${m.s}/${SMUG_LIM}</span></div>
-     <div class="strade"><span class="lab">재고</span><span class="big">${m.inv}${g.u}</span><input id="qg${k}" type="number" min="1" max="${SMUG_LIM}" value="${SMUG_LIM}" aria-label="${g.n} 수량">
-      <div class="row"><button class="buy sm" ${inRound?'':'disabled'} onclick="sendAct({k:'smb',it:'${k}',q:int($('#qg${k}').value)})">구매</button><button class="sell sm" ${inRound?'':'disabled'} onclick="sendAct({k:'sms',it:'${k}',q:int($('#qg${k}').value)})">판매</button></div></div></div>`}).join('')+'<p class="note">재고는 다음 라운드로 넘어가니, 싸게 사 두었다가 비싼 라운드에 팔 수도 있습니다.</p>';
-  if(finTab==='job')cards=`<p class="note">아르바이트는 라운드당 한 번, 라운드 중 언제든 할 수 있습니다.</p>`+JOBS.map(j=>`<div class="scard"><div class="col" style="gap:4px"><div class="sname">${j.n}</div><span class="note">${j.d}</span></div><div class="strade"><button class="sm" ${inRound&&!P.jobDone?'':'disabled'} onclick="sendAct({k:'job',j:'${j.k}'})">${P.jobDone?'이번 라운드 완료':'일하기'}</button></div></div>`).join('');
-  if(finTab==='casino')cards=`<p class="note">라운드당 ${GAM_LIM}번까지 걸 수 있습니다. 이번 라운드 ${P.gamN}/${GAM_LIM}회. 길게 보면 카지노가 이깁니다.</p><div class="row"><span class="lab">건 돈</span><input id="betAmt" type="number" min="1" step="10" value="50" aria-label="건 돈"></div>`+Object.keys(GAMES).map(k=>`<div class="scard"><div class="col" style="gap:4px"><div class="sname">${GAMES[k].n}</div><span class="note">${GAMES[k].d}</span></div><div class="strade"><button class="red sm" ${inRound&&P.gamN<GAM_LIM?'':'disabled'} onclick="sendAct({k:'gam',g:'${k}',bet:int($('#betAmt').value)})">걸기</button></div></div>`).join('');
-  const TABS=[['stock','주식'],['coin','암호화폐'],['smug','밀수'],['job','아르바이트'],['casino','카지노']];
+  const TABS=[['stock','주식'],['coin','암호화폐']];if(!['stock','coin'].includes(finTab))finTab='stock';
   return`<div class="finwrap"><nav class="vtabs" aria-label="시장">${TABS.map(([k,n])=>`<button class="${finTab===k?'on':''}" onclick="finTab='${k}';render()">${n}</button>`).join('')}</nav>
-   <div class="cards">${canTrade||!['stock','coin'].includes(finTab)?'':'<p class="note">주식과 코인 매매는 정보 단계에만 열립니다.</p>'}${cards}</div>
+   <div class="cards">${canTrade?'':'<p class="note">주식과 코인 매매는 정보 단계(60초)에만 열립니다. 송금은 언제든 됩니다.</p>'}${cards}</div>
    <aside class="finside col">
     <section class="sheet"><span class="lab">자산</span><div class="row between"><span>현금</span><b class="mono">${fmt(P.cash)}C</b></div><div class="row between"><span>주식 평가</span><b class="mono">${fmt(stockVal)}C</b></div><div class="row between"><span>코인 평가</span><b class="mono">${fmt(coinVal)}C</b></div><p class="note">라운드가 끝날 때마다 +100C</p></section>
     <section class="sheet"><span class="lab">송금</span><input id="tfAmt" type="number" min="1" step="10" value="100" aria-label="송금액" style="width:100%">
@@ -1104,9 +1112,9 @@ function finUI(){
      <button class="sm ghost" ${canTf?'':'disabled'} onclick="tf('spy','bank')">현장 요원에게 (은행 · 감청 +8)</button>
      <button class="sm ghost" ${canTf?'':'disabled'} onclick="tf('spy','coin')">현장 요원에게 (코인 · 수수료 2%, 추적 없음)</button></section>
     <section class="sheet"><span class="lab">금융감독원</span><p class="note">정보원이 이번 라운드 해킹한 종목을 라운드 시작 현금의 50% 이상 사면 수익 절반이 동결됩니다.</p></section>
-    <section class="sheet"><span class="lab">본부 회선 · 정보원 (엄격 감청)</span><div class="chat" id="hqBox" style="min-height:80px;max-height:220px">${P.hq.length?P.hq.map(m=>`<div><b>${m.w==='fin'?'나':'정보원'}</b> <span class="note">R${m.rd}</span> ${esc(m.t)}</div>`).join(''):'<span class="note">정보원과 언제든 대화할 수 있지만 아주 깐깐하게 감청됩니다. 숫자나 종목 이름을 그대로 쓰면 바로 걸립니다.</span>'}</div>
+    <section class="sheet"><span class="lab">본부 회선 · 정보원 (느슨한 감청)</span><div class="chat" id="hqBox" style="min-height:80px;max-height:220px">${P.hq.length?P.hq.map(m=>`<div><b>${m.w==='fin'?'나':'정보원'}</b> <span class="note">R${m.rd}</span> ${esc(m.t)}</div>`).join(''):'<span class="note">정보원과 언제든 대화할 수 있습니다. 감청이 느슨해서 금지어만 +5입니다.</span>'}</div>
      <form id="hqF" class="row"><input id="hqIn" type="text" maxlength="120" placeholder="정보원에게" style="flex:1 1 140px" aria-label="본부 회선 메시지"><button type="submit" class="sm">보내기</button></form></section>
-    <section class="sheet"><span class="lab">현장 회선 · 현장 요원 (엄격 감청)</span><div class="chat" id="fsBox" style="min-height:60px;max-height:200px">${P.fs.length?P.fs.map(m=>`<div><b>${m.w==='fin'?'나':'현장 요원'}</b> <span class="note">R${m.rd}</span> ${esc(m.t)}</div>`).join(''):'<span class="note">현장 요원과 대화하는 회선입니다. 숫자·종목 이름·금지어가 모두 감점입니다.</span>'}</div>
+    <section class="sheet"><span class="lab">현장 회선 · 현장 요원 (빡빡한 감청)</span><div class="chat" id="fsBox" style="min-height:60px;max-height:200px">${P.fs.length?P.fs.map(m=>`<div><b>${m.w==='fin'?'나':'현장 요원'}</b> <span class="note">R${m.rd}</span> ${esc(m.t)}</div>`).join(''):'<span class="note">현장 요원 휴대폰으로 가는 회선이라 현장 메신저와 똑같이 빡빡하게 감청됩니다.</span>'}</div>
      <form id="fsF" class="row"><input id="fsIn" type="text" maxlength="80" placeholder="현장 요원에게 (감청됨)" style="flex:1 1 140px" aria-label="현장 회선 메시지"><button type="submit" class="sm">보내기</button></form></section>
     <section class="sheet"><span class="lab">코인 메모 · 수상한 연락</span>${inboxHTML()}</section>
    </aside></div>`;
@@ -1149,10 +1157,10 @@ function infUI(){
   if(infApp==='msg')w=`<div class="thread" id="thr">${P.msgs.length?P.msgs.map(m=>`<div class="bubble ${m.w==='inf'?'me':''}"><span class="dim">R${m.rd} ${m.w==='inf'?'나':'현장'}</span><br>${esc(m.t)}</div>`).join(''):'<span class="dim">현장 요원과의 대화가 없습니다.</span>'}</div>
     <form id="msgF" class="row"><input id="msgIn" type="text" maxlength="60" placeholder="${ph==='relay'?'암호로 바꿔서 쓰세요 (60자)':'전달 단계에만 보낼 수 있습니다'}" style="flex:1 1 200px" aria-label="메시지" ${ph==='relay'?'':'disabled'}><button type="submit" ${ph==='relay'&&P.msgN<2?'':'disabled'}>보내기 ${P.msgN}/2</button></form>
     <div id="msgPrev" class="item"></div>
-    <p class="${P.risk?'hot':'dim'}">통신 위험 ${risk} · 금지어 원문, 3라운드 연속 같은 단어, 긴 문장이 감청에 걸립니다.</p>
-    <p class="dim">미리 정한 암호는 없습니다. 장소나 인물을 비슷한 말로 돌려 말하고, 현장 요원이 눈치껏 알아듣게 하세요. 예: 지하 카지노 → "주사위 굴리는 지하실".</p>
+    <p class="${P.risk?'hot':'dim'}">통신 위험 ${risk} · 빡빡한 감청: 금지어 +25, 숫자 +10, 같은 은어 연속 사용 +15, 40자 초과 +5.</p>
+    <span class="dim">브리핑 때 정한 은어 (같은 은어를 연속으로 쓰면 +15)</span>${cbList(true)}
     <span class="dim">참고할 정보</span>${P.intel.slice(-5).reverse().map(intelLine).join('')||'<span class="dim">없음</span>'}`;
-  if(infApp==='hq')w=`<p class="hot">자금책과의 회선입니다. 언제든 보낼 수 있지만 금융 감시까지 붙어 <b>아주 깐깐하게 감청</b>됩니다. 금지어 +25, 숫자 하나마다 +10, 종목·코인 이름 +15, 30자 초과 +5.</p>
+  if(infApp==='hq')w=`<p class="dim">자금책과의 회선입니다. 언제든 보낼 수 있고 감청이 느슨합니다(금지어만 +5). 마음껏 떠들고 의심하세요.</p>
     <div class="thread" id="hqThr">${P.hq.length?P.hq.map(m=>`<div class="bubble ${m.w==='inf'?'me':''}"><span class="dim">R${m.rd} ${m.w==='inf'?'나':'자금책'}</span><br>${esc(m.t)}</div>`).join(''):'<span class="dim">아직 대화가 없습니다.</span>'}</div>
     <form id="hqF" class="row"><input id="hqIn" type="text" maxlength="120" placeholder="자금책에게 (120자)" style="flex:1 1 200px" aria-label="본부 회선 메시지"><button type="submit">보내기</button></form>
     <span class="dim">해킹으로 얻은 시장 정보 (직접 전달 버튼은 없습니다. 말로 돌려 전하세요)</span>${P.ht.slice().reverse().map(h=>`<div class="item"><span>${(h[6]?COINS:STOCKS)[h[1]].n} R${h[4]} ${h[2]>0?'상승':'하락'} 약 ${h[3]}%</span></div>`).join('')||'<span class="dim">없음</span>'}`;
@@ -1161,8 +1169,8 @@ function infUI(){
   if(infApp==='ib')w=inboxHTML();
   const pops=[];if(P.risk===2)pops.push(['alert','⚠ 통신 패턴 이상 감지. 이대로면 다음 라운드에 탐지됩니다.']);
   if(P.trace>=40)pops.push(['','추적도 '+P.trace+' · 해킹을 줄이세요']);if(newIb)pops.push(['','새 연락 '+newIb+'건']);
-  const modal=ph==='escape'?`<div class="modal"><div class="box"><b class="hot">⚠ 경찰 감청 시스템이 통신을 탐지했습니다</b><span>현장 요원 위치 추적 중 · 탈출 수단을 고르세요</span>
-    <span class="dim">보유 ${fmt(P.cash)}C · 고를 때까지 게임이 멈춥니다. 돈이 모자라면 본부 회선으로 자금책에게 긴급 송금을 요청하세요.</span>
+  const modal=ph==='escape'?`<div class="modal"><div class="box"><b class="hot">⚠ 경찰 감청 시스템이 통신을 탐지했습니다</b><span>현장 요원 위치 추적 중 · 20초 안에 탈출 수단을 고르세요 (안 고르면 도보) <b class="hot">${TM}</b></span>
+    <span class="dim">보유 ${fmt(P.cash)}C · 돈이 모자라면 본부 회선으로 자금책에게 긴급 송금을 요청하세요.</span>
     ${TRANS.map((t,i)=>`<button class="${i>=3?'hot':''}" ${P.cash>=t.c?'':'disabled'} onclick="sendAct({k:'esc',m:${i}})" style="text-align:left">${t.n} · ${t.c}C · 기본 확률 ${t.p}%</button>`).join('')}</div></div>`:'';
   return`<div class="pc"><div class="screen"><div class="desk"><nav class="icons" aria-label="프로그램">${APPS.map(([k,n])=>`<button class="${infApp===k?'on':''}" onclick="infApp='${k}';render()"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>${n}${k==='ib'&&newIb?`<span class="badge">${newIb}</span>`:''}</button>`).join('')}</nav>
    <section class="win"><div class="wbar"><span>${APPS.find(a=>a[0]===infApp)[1]}.exe</span><span>BS-OS</span></div><div class="wbody">${w}</div></section></div>
@@ -1194,9 +1202,10 @@ function spyUI(){
     <p class="note">인물과 접선하면 흑조 쪽 사람이 직접 접근해 올 확률이 높아집니다.</p></section>
    <div class="col"><div class="phone"><span class="lab" style="color:inherit;opacity:.7">보안 메신저 · 감청 중</span><div class="scr" id="pscr">${P.msgs.length?P.msgs.map(m=>`<div class="pbub ${m.w==='spy'?'me':''}"><span style="opacity:.6;font-size:12px">R${m.rd}</span><br>${esc(m.t)}</div>`).join(''):'<span class="note">정보원의 메시지가 여기로 옵니다. 돌려 말한 뜻을 눈치껏 알아채 목표를 정하세요.</span>'}</div>
      <form id="repF" class="row"><input id="repIn" type="text" maxlength="60" placeholder="답장 (라운드당 1개)" style="flex:1 1 150px" aria-label="답장"><button type="submit" class="red sm" ${(ph==='relay'||ph==='field')&&P.repN<1?'':'disabled'}>보내기</button></form></div>
-    <section class="sheet"><span class="lab">현장 회선 · 자금책 (엄격 감청)</span><div class="chat" id="fsBox" style="min-height:60px;max-height:200px">${P.fs.length?P.fs.map(m=>`<div><b>${m.w==='spy'?'나':'자금책'}</b> <span class="note">R${m.rd}</span> ${esc(m.t)}</div>`).join(''):'<span class="note">자금책과 대화하는 회선입니다. 숫자·종목 이름·금지어가 모두 감점입니다.</span>'}</div>
+    <section class="sheet"><span class="lab">현장 회선 · 자금책 (빡빡한 감청)</span><div class="chat" id="fsBox" style="min-height:60px;max-height:200px">${P.fs.length?P.fs.map(m=>`<div><b>${m.w==='spy'?'나':'자금책'}</b> <span class="note">R${m.rd}</span> ${esc(m.t)}</div>`).join(''):'<span class="note">내 휴대폰 회선이라 현장 메신저와 똑같이 빡빡하게 감청됩니다.</span>'}</div>
      <form id="fsF" class="row"><input id="fsIn" type="text" maxlength="80" placeholder="자금책에게 (감청됨)" style="flex:1 1 140px" aria-label="현장 회선 메시지"><button type="submit" class="sm">보내기</button></form>
      ${P.stips.length?`<span class="lab">현장에서 들은 시장 소문</span>${P.stips.slice().reverse().map(t=>`<span class="note">R${t.rd} ${(t.c?COINS:STOCKS)[t.s].n} ${t.d>0?'▲ 오른다':'▼ 내린다'} (80%)</span>`).join('')}`:''}</section>
+    <section class="sheet"><span class="lab">브리핑 때 정한 은어</span>${cbList(false)}<p class="note">자동 해독은 없습니다. 정보원이 은어를 바꿔 부르면 눈치껏 알아들어야 합니다.</p></section>
     <section class="sheet"><span class="lab">접선 기록 · 수상한 연락</span>${inboxHTML()}</section></div></div>`;
 }
 function pickSrc(i){spySel=i;if(spyAct!=='go'&&spyAct!=='inf')spyAct='go';render()}
@@ -1251,20 +1260,20 @@ $('#rulesBody').innerHTML=`
 <h3>입장</h3><ul><li>코드명을 입력하면 초대 코드가 나옵니다. 창을 닫으면 즉시 만료되고, 다시 접속하면 새 코드가 나옵니다.</li><li>호스트가 방을 만들고 두 사람의 코드를 입력하면 자동으로 합류합니다.</li></ul>
 <h3>혼자 테스트하기</h3><p>호스트는 역할이 다 차지 않아도 '테스트 모드로 시작'할 수 있습니다. 빈 역할은 아무 행동도 하지 않고 단계마다 자동으로 완료 처리됩니다. 테스트 모드에서는 호스트 상단 바의 '역할 전환'으로 빈 역할을 오가며 각 화면을 확인할 수 있습니다.</p>
 <h3>관전자</h3><p>역할을 맡지 않은 사람은 관전자가 됩니다. 인원 제한은 없고, 초대 코드로 똑같이 초대합니다. 관전자는 공개 정보만 보고, 투표와 행동은 하지 않습니다. 연결이 끊긴 역할 자리는 관전자가 이어받을 수 있습니다.</p>
-<h3>진행</h3><p>시간 제한은 없습니다. 사전 브리핑이나 미리 정하는 암호 없이 바로 1라운드가 시작됩니다. 라운드마다 정보 → 전달 → 현장 → 결과 순서이고, 세 사람이 모두 '이 단계 완료'를 눌러야 다음 단계로 넘어갑니다.</p>
+<h3>진행</h3><p><b>하드 타이머</b>: 사전 브리핑 3분(은어 매핑) → 라운드마다 정보 60초 → 전달 40초 → 현장 40초 → 결과. 시간이 끝나면 무조건 다음 단계로 넘어가고, 세 사람이 모두 '이 단계 완료'를 누르면 더 빨리 넘어갑니다. 10초 남으면 화면 테두리가 빨갛게 깜빡이고 경보음이 울립니다. 긴급 탈출은 20초.</p>
 <div class="tbl"><table><thead><tr><th>역할</th><th>할 수 있는 일</th></tr></thead><tbody>
 <tr><td>자금책</td><td>시작 300C, 라운드마다 +100C. 주식 6종(라운드당 최대 ±12%), 코인 3종(정보 단계 중 20초마다, 라운드당 최대 3번 변동, 수수료 2%). 송금은 은행(현장 요원에게 보내면 감청 +8) 또는 코인(추적 없음, 수수료 2%).</td></tr>
-<tr><td>정보원</td><td>뉴스(무료, 소문 신뢰도 30%) · 암시장(30C 35% ~ 500C 100%) · 해킹툴(기업 서버: 주가 정보 85% / 흑조 회계: 100~300C / 흑조 내부망: 위치 80%, 라운드당 4회) · 현장 메신저(라운드당 2개, 감청됨) · 본부 회선(자금책과 언제든 대화, 엄격 감청) · 포렌식(40C, 진위 판별).</td></tr>
+<tr><td>정보원</td><td>뉴스(무료, 소문 신뢰도 30%) · 암시장(30C 35% ~ 500C 100%) · 해킹툴(기업 서버: 주가 정보 85% / 흑조 회계: 100~300C / 흑조 내부망: 위치 80%, 라운드당 4회) · 현장 메신저(라운드당 2개, 빡빡한 감청) · 본부 회선(자금책과 언제든 대화, 느슨한 감청) · 포렌식(40C, 진위 판별).</td></tr>
 <tr><td>현장 요원</td><td>현장 단계: 이동·수색/접선(성공 65% + 등급×10%) · 잠입 · 기밀 탈취(2등급 이상) · 위장(90% 성공: 발각도 −20 / 10% 실패: 발각도 +20) · 매수(100C, 발각도 −25). 전달 단계: 은신(발각도 −10, 다음 탈출 +10%, 라운드당 1번, 현장 행동과 별개). 답장은 라운드당 1개.</td></tr></tbody></table></div>
-<h3>눈치 통신</h3><p>미리 정하는 암호장이나 메모, 자동 변환은 없습니다. 하고 싶은 말을 비슷한 말로 돌려 표현하고, 받는 사람이 눈치껏 알아들어야 합니다. 예: 호텔 스위트 → "높은 층 비싼 방", 딜러 미라 → "카드 섞는 여자".</p>
+<h3>은어 매핑</h3><p>게임 시작 전 3분 동안 장소·인물마다 은어를 정합니다. 게임 중에는 은어표를 볼 수 있지만 자동 변환·해독은 없습니다. 같은 은어를 현장 메신저에서 연속으로(같은 라운드 두 번째, 또는 지난 라운드에 이어 또) 쓰면 패턴 감청 +15. 은어를 바꿔 부르다 서로 오해하는 것도 게임의 일부입니다.</p>
 <h3>이번에 더해진 규칙</h3><ul>
 <li>현장 요원: 잠입도 지도에서 장소나 인물을 골라야 합니다. 기밀 탈취를 하면 접근 등급이 한 단계 내려갑니다. 3등급 탈취는 진본 확보 100%이고, 20% 확률로 진위를 알 수 없는 기밀을 하나 더 얻습니다.</li>
 <li>수상한 낌새: 정보원이 알아낸 장소나 인물(정보 목록에 있는 곳)로 현장 요원이 가면 50% 확률로 50~150C, 50% 확률로 다음 라운드 주식이나 코인 소문(정확도 80%)을 얻습니다.</li>
-<li>현장 회선: 자금책과 현장 요원이 대화할 수 있습니다. 감청됩니다.</li>
-<li>전체 채팅: 역할을 맡은 사람만 쓸 수 있고, 게임 중에는 감청됩니다. 관전자는 읽기만 합니다.</li>
+<li>현장 회선: 자금책과 현장 요원이 대화할 수 있습니다. 현장 메신저처럼 빡빡하게 감청됩니다.</li>
+<li>전체 채팅: 역할을 맡은 사람만 쓸 수 있고, 감청이 느슨합니다(금지어 +5). 관전자는 읽기만 합니다.</li>
 <li>정보원: 해킹이 라운드당 4회로 늘었고, 코인 거래소 서버를 해킹하면 이번 라운드 끝 코인 시세 방향(정확도 80%)을 알 수 있습니다.</li>
-<li>자금책: 아르바이트(라운드당 1번, 편의점 +50C 또는 대리운전 20~140C), 밀수(담배·양주를 라운드당 10개씩 사고팔아 시세 차익), 카지노(홀짝·주사위·슬롯, 라운드당 3번).</li></ul>
-<h3>감청과 탈출</h3><p><b>자금책이 끼는 회선(본부 회선, 현장 회선, 전체 채팅)은 엄격 감청</b>입니다: 금지어 +25, 숫자 하나마다 +10(아라비아 숫자, 하나·둘·셋·일·이·삼 같은 수 단어 포함), 종목·코인 이름 +15, 30자 초과 +5. 정보원↔현장 요원 현장 메신저는 금지어 원문 +20, 흑조에 넘어간 암호 +25, 3라운드 연속 같은 단어 +10, 40자 초과 +5, 은행으로 현장 요원에게 송금 +8. 감청 점수에 추적도의 절반을 더해 60 이상이면 다음 라운드는 긴급 탈출로 시작합니다. 정보원이 도보 25% · 버스 40% · 택시 60% · 퀵 오토바이 80% · 전세 헬기 95% 중에서 고르고, 실패하면 체포되어 게임 오버입니다.</p>
+<li>자금책: 주식 6종, 코인 3종, 송금에만 집중합니다.</li></ul>
+<h3>감청과 탈출</h3><p><b>빡빡한 감청</b>은 현장 요원 휴대폰으로 오가는 회선(현장 메신저, 현장 회선)에만 걸립니다: 금지어 +25, 숫자 하나마다 +10(하나·둘·일·이 같은 수 단어 포함), 같은 은어 연속 사용 +15, 40자 초과 +5. <b>본부 회선과 전체 채팅은 느슨</b>해서 금지어만 +5입니다. 그 밖에 흑조에 넘어간 은어 +25(느슨한 회선은 +10), 3라운드 연속 같은 단어 +10, 은행으로 현장 요원에게 송금 +8. 감청 점수에 추적도의 절반을 더해 60 이상이면 다음 라운드는 긴급 탈출로 시작합니다. 정보원이 도보 25% · 버스 40% · 택시 60% · 퀵 오토바이 80% · 전세 헬기 95% 중에서 고르고, 실패하면 체포되어 게임 오버입니다.</p>
 <h3>금융감독원</h3><p>정보원이 이번 라운드 해킹한 종목을 그 라운드에 라운드 시작 현금의 50% 이상 사면, 그 종목 수익의 절반이 동결됩니다.</p>
 <h3>흑조의 역공작</h3><p>라운드마다 낮은 확률로 나에게만 연락이 옵니다. 자금책은 코인 메모, 정보원은 연락함, 현장 요원은 접선 중 직접 받습니다. 회유 60% · 이간질 30% · 진짜 제보 10%이고, 회유와 제보는 겉보기가 같고 첨부 정보의 정확도만 다릅니다(50% / 100%). 회유에 '협조한다'를 누르면 이중 스파이가 됩니다(아래 확장 규칙).</p>
 <h3>이중 스파이 (확장 규칙)</h3><p>회유를 수락하면 이중 스파이가 됩니다(한 게임에 1명). 핸들러가 매 라운드 새 임무를 주고(직전 임무와 겹치지 않음), 성공하면 흑조 평판이 오릅니다. 흑조 행동(임무 버튼, 암호 넘기기, 흔적 지우기, 누명 씌우기)은 라운드당 1번만 쓸 수 있습니다. 평판이 높을수록 보상이 커지고, 8 이상이면 가짜 증거 하나를 알게 됩니다. 임무마다 확률적으로 <b>내부 감찰 로그</b>에 용의자 두 명을 가리키는 흔적이 남습니다. 이중 스파이는 흔적 지우기(평판 2), 누명 씌우기(평판 3), 암호 넘기기(평판 +1)를 쓸 수 있고, 한 번 <b>자수</b>할 수 있습니다(팀에 100% 정보 제공, 심문 감점 없음, 경계도 +20). 임무를 3라운드 연속 무시하면 흑조가 팀에 힌트를 흘립니다. 누구나 게임당 2번 100C로 동료를 뒷조사할 수 있습니다(정확도 75%, 결과는 나만 봄). 이중 스파이가 있는데 또 회유를 수락하면 <b>삼중 스파이</b>가 되어, 이중 스파이의 역할 힌트(60%)를 받습니다.</p>
