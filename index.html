@@ -165,6 +165,10 @@ input[type=number]{width:84px}
 .inbox .msg{border-left:3px solid var(--stamp);padding:8px 10px;background:var(--paper);display:flex;flex-direction:column;gap:6px;font-size:14px}
 .screen .inbox .msg{background:var(--crt-bg);border-left-color:var(--crt-hot)}
 .da{border:2px solid var(--stamp)}
+.tri{border:2px solid var(--brass)}
+.hlog{display:flex;flex-direction:column;gap:4px;font-size:13px;max-height:180px;overflow:auto;border-left:2px solid var(--line);padding-left:10px}
+.trace{border-left:3px solid var(--brass);padding:6px 10px;background:var(--paper);font-size:14px;display:flex;flex-direction:column;gap:2px}
+.trace.del{border-left-color:var(--line);color:var(--mute);font-style:italic}
 .memo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 @media (max-width:760px){.memo{grid-template-columns:1fr}}
 .memo .pad{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -259,7 +263,28 @@ const ENDINGS={
  none:{t:'빈 보고서',p:'제출할 만한 증거가 없었다. 작전은 기록 없이 종결되고, 흑조라는 이름만 남는다.'},
  caught:{t:'경찰에 체포됨',p:'감청망에 걸린 통신이 현장 요원의 위치를 넘겨주었다.'},
  exposed:{t:'흑조에 붙잡힘',p:'현장 요원의 정체가 흑조 안에서 드러났다.'}};
+const MISSIONS={
+ fin:[{k:'blk',t:'자금책 화면의 "흑조 지갑"으로 이번 라운드 150C 이상 보내라',rp:2,tr:30,tx:'외부 코인 지갑으로 출금된 기록'},
+      {k:'dry',t:'이번 라운드 현장 요원에게 보내는 돈을 50C 미만으로 유지하라',rp:1,tr:10,tx:'현장 활동비 집행이 이상하게 줄었다'},
+      {k:'word',t:'본부 회선 메시지에 "{w}"라는 단어를 넣어라',rp:1,tr:0,tx:''}],
+ inf:[{k:'pos',t:'현장 단계에서 "좌표 유출"을 눌러 현장 요원의 목표를 흑조에 넘겨라',rp:2,tr:30,tx:'작전 좌표가 외부 서버로 전송된 흔적'},
+      {k:'noisy',t:'현장 메신저 메시지에 감청 금지어를 하나 이상 섞어라',rp:1,tr:15,tx:'암호 규칙을 무시한 통신이 나왔다'},
+      {k:'word',t:'현장 메신저나 본부 회선 메시지에 "{w}"라는 단어를 넣어라',rp:1,tr:0,tx:''}],
+ spy:[{k:'swap',t:'"증거 바꿔치기"를 눌러 확보한 진본 하나를 흑조에 넘기고 가짜로 바꿔라',rp:3,tr:35,tx:'증거 보관함 봉인이 한 번 뜯겼다'},
+      {k:'empty',t:'현장 단계에서 "빈손 보고"를 켜고 수색하라. 찾은 증거는 흑조로 간다',rp:2,tr:20,tx:'수색 기록과 현장 CCTV가 맞지 않는다'},
+      {k:'meet',t:'이번 라운드 {p}와 접선하라',rp:1,tr:10,tx:'요원이 예정에 없던 인물과 접선했다'},
+      {k:'word',t:'답장 메시지에 "{w}"라는 단어를 넣어라',rp:1,tr:0,tx:''}]};
+const HWORDS=['해바라기','선인장','오로라','등대','망원경','나침반','라벤더','유니콘','은하수','종이학','회전목마','만년필'];
+const FRAMETX=['누군가의 단말에서 흑조 번호로 발신한 기록','심야에 작전 파일이 복사된 흔적','출처 불명의 현금이 오간 흔적'];
+const HINT={fin:'돈을 만진다',inf:'화면 앞에 앉아 있다',spy:'발로 뛴다'};
+const PERSONAL={boss:['흑조 간부 (이중 스파이 단독 승리)','팀은 끝내 눈치채지 못했다. 몇 달 뒤, 흑조의 새 간부 명단에 낯익은 이름이 올라간다.'],
+ double:['이중생활','들키지 않았다. 그는 오늘도 두 개의 휴대폰을 번갈아 확인한다.'],
+ quiet:['조용한 첩자','흑조에 크게 기여하지는 못했지만, 아무도 그를 의심하지 않았다.'],
+ caught:['배신자 체포','동료들의 눈은 속이지 못했다. 흑조 연락선은 그날 밤 끊겼다.'],
+ back:['돌아온 요원','흑조와의 거래를 스스로 털어놓았다. 대가는 컸지만 팀은 그를 다시 받아들였다.'],
+ trap2:['이중의 덫','삼중 스파이가 흑조의 신뢰를 역이용해 배신자를 정확히 짚어냈다.']};
 const VOTEOUT={
+ confessed:['돌아온 요원','흑조와 손잡았던 동료가 스스로 털어놓았다. 팀은 그의 제보로 한 걸음 더 나아갔다.'],
  catch:['쥐를 잡다','팀은 흑조와 손잡은 동료를 정확히 지목했다. 보고서에서 그가 흘린 정보가 걸러졌다.'],
  miss:['배신의 대가','흑조의 첩자는 끝까지 들키지 않았다. 몇 달 뒤, 흑조는 새 둥지를 튼다.'],
  wrong:['의심의 밤','첩자가 없는데도 동료를 의심했다. 팀은 다시는 같이 일하지 않는다.'],
@@ -302,7 +327,7 @@ function newGame(keep){
     cl:[],lg:[],cur:[],seats:keep?keep.seats:{fin:null,inf:null,spy:null},nk:keep?keep.nk:{},on:{},rdy:{},
     tap:0,trace:0,esc:false,hid:false,skip:false,met:false,
     intel:[],iSeq:1,news:[],ht:[],htSeq:1,tips:[],msgs:[],inbox:{fin:[],inf:[],spy:[]},ibT:{},ibSeq:1,
-    hacks:0,msgN:0,repN:0,pend:null,hq:[],cb:keep?keep.cb:[],memo:keep?keep.memo:{fin:'',inf:'',spy:''},da:{},daLast:{},leaked:[],words:{},votes:{},rep:null,
+    hacks:0,msgN:0,repN:0,pend:null,hq:[],daRole:null,wasDA:null,conf:null,drep:0,mis:{},ign:{},hlog:{fin:[],inf:[],spy:[]},tri:{},fakeKnown:-1,lost:[],tr:[],trT:{},trSeq:1,inv:{fin:[],inf:[],spy:[]},invN:{fin:0,inf:0,spy:0},blk:0,spyPaid:0,emptyOn:false,posLeak:false,cb:keep?keep.cb:[],memo:keep?keep.memo:{fin:'',inf:'',spy:''},da:{},daLast:{},leaked:[],words:{},votes:{},rep:null,
     startCash:300,bought:STOCKS.map(()=>0),spent:STOCKS.map(()=>0),tipS:[],
     flash:{},flSeq:(keep?keep.flSeq:1),fl:{burn:0},end:null};
 }
@@ -310,7 +335,7 @@ const LOG=e=>G.cur.push(e);
 function flash(role,m){G.flash[role]={n:G.flSeq++,m}}
 function setPhase(ph){G.ph=ph;G.pe=Date.now();G.tk=0}
 function foundSet(){return new Set(G.cl.map(c=>c[0]))}
-function remaining(f){const s=foundSet();return CLUES.map((c,i)=>i).filter(i=>!s.has(i)&&f(i))}
+function remaining(f){const s=foundSet();for(const i of G.lost)s.add(i);return CLUES.map((c,i)=>i).filter(i=>!s.has(i)&&f(i))}
 function makeIntel(arc,acc,from){
   const rs=remaining(i=>CLUES[i].a===arc&&CLUES[i].r);
   if(!rs.length)return null;
@@ -334,15 +359,16 @@ function startRound(){
   const it=makeIntel(pick(['A','B','C']),30,'news');if(it)G.news.push({k:'ru',i:it.id});
   if(rnd()<.5){const s2=(si+1+Math.floor(rnd()*5))%STOCKS.length;const d2=Math.sign(G.nx[s2])||1;G.news.push({k:'mk',s:s2,d:rnd()<.6?d2:-d2})}
   G.startCash=G.cash.fin;G.bought=STOCKS.map(()=>0);G.spent=STOCKS.map(()=>0);G.tipS=[];
-  G.hacks=0;G.msgN=0;G.repN=0;G.pend=null;
+  G.hacks=0;G.msgN=0;G.repN=0;G.pend=null;G.blk=0;G.spyPaid=0;G.emptyOn=false;G.posLeak=false;
+  giveMissions();
   G.cur=[];G.lg=[{r:G.rd,e:G.cur},...G.lg].slice(0,2);
-  for(const role of ['fin','inf','spy']){if(rnd()<.12+(role==='spy'&&G.met?.2:0))makeOffer(role)}
+  for(const role of ['fin','inf','spy']){if(rnd()<.06+.014*G.rd+(role==='spy'&&G.met?.2:0))makeOffer(role)}
   G.met=false;
   setPhase(G.esc?'escape':'info');
 }
 function makeOffer(role){
   let ty;const x=rnd();
-  if(G.da[role])ty=x<.75?'sow':'tip';else ty=x<.6?'rec':x<.9?'sow':'tip';
+  if(G.daRole===role||G.tri[role]||G.conf===role)ty=x<.75?'sow':'tip';else ty=x<.6?'rec':x<.9?'sow':'tip';
   const id=G.ibSeq++;G.ibT[id]=ty;
   let m,at='';
   if(ty==='sow')m=pick(SOW[role]);
@@ -351,6 +377,20 @@ function makeOffer(role){
     else{const it=makeIntel(pick(['A','B','C']),acc,'ib');if(it)at=`[${ARCS[it.a].n}] 진짜 증거 → ${SRC[it.s]}`}}
   G.inbox[role].push({id,m,at,st:0,rd:G.rd});G.inbox[role]=G.inbox[role].slice(-4);
 }
+function hl(role,t){G.hlog[role].push({rd:G.rd,t});G.hlog[role]=G.hlog[role].slice(-20)}
+function newMission(role){
+  let list=MISSIONS[role].filter(m=>!(m.k==='swap'&&!G.cl.some(c=>CLUES[c[0]].r)));
+  const m=Object.assign({},pick(list));m.w=pick(HWORDS);m.p=pick(PEOPLE);
+  m.t=m.t.replace('{w}',m.w).replace('{p}',SRC[m.p]);m.done=false;m.rd=G.rd;return m;
+}
+function giveMissions(){for(const r of ['fin','inf','spy'])if(G.daRole===r||(G.tri[r]&&!G.tri[r].cut)){G.mis[r]=newMission(r);hl(r,'새 임무: '+G.mis[r].t)}else delete G.mis[r]}
+function misDone(role,k){const m=G.mis[role];if(m&&m.k===k&&!m.done){m.done=true;flash(role,'핸들러: 임무 확인. 수고했다')}}
+function addTrace(tx,culprit,real){
+  const others=['fin','inf','spy'].filter(r=>r!==culprit);
+  const sus=real?shuffle([culprit,pick(others)]):shuffle(others);
+  const id=G.trSeq++;G.tr.push({id,rd:G.rd,t:tx,s:sus,del:0});G.trT[id]={by:culprit,real,er:0};G.tr=G.tr.slice(-12);
+}
+function checkWord(role,t){const m=G.mis[role];if(m&&m.k==='word'&&t.includes(m.w))misDone(role,'word')}
 function coinTick(big){
   COINS.forEach((c,i)=>{if(G.dead[i])return;const pct=(c.lo+rnd()*(c.hi-c.lo))*(rnd()<.5?-1:1);
     let p=Math.max(1,Math.round(G.cp[i][G.cp[i].length-1]*(1+pct/100)));
@@ -381,9 +421,9 @@ function doAction(role,a){
     else{const n=Math.min(q,G.ch[c]);if(n<1)return flash('fin','보유 코인이 없습니다');G.cash.fin+=Math.floor(n*p*.98);G.ch[c]-=n;flash('fin',`${COINS[c].n} ${n}개 매도 (수수료 2%)`)}
     return}
   if(k==='tf'){if(role!=='fin'||!inRound)return;const to=a.to==='spy'?'spy':'inf';const amt=clamp(int(a.amt),1,1e7);
-    if(a.via==='coin'&&to==='spy'){const cost=Math.ceil(amt*1.02);if(cost>G.cash.fin)return flash('fin','현금이 부족합니다');G.cash.fin-=cost;G.cash.spy+=amt;flash('fin',`코인으로 현장 요원에게 ${amt}C 전송 (추적 없음)`);flash('spy',`출처 없는 코인 ${amt}C가 들어왔다`);return}
+    if(a.via==='coin'&&to==='spy'){const cost=Math.ceil(amt*1.02);if(cost>G.cash.fin)return flash('fin','현금이 부족합니다');G.cash.fin-=cost;G.cash.spy+=amt;G.spyPaid+=amt;flash('fin',`코인으로 현장 요원에게 ${amt}C 전송 (추적 없음)`);flash('spy',`출처 없는 코인 ${amt}C가 들어왔다`);return}
     if(amt>G.cash.fin)return flash('fin','현금이 부족합니다');G.cash.fin-=amt;G.cash[to]+=amt;
-    if(to==='spy'){G.tap+=8;flash('spy',`은행 계좌로 ${amt}C 입금`)}else flash('inf',`자금책이 ${amt}C를 보냈다`);
+    if(to==='spy'){G.tap+=8;G.spyPaid+=amt;flash('spy',`은행 계좌로 ${amt}C 입금`)}else flash('inf',`자금책이 ${amt}C를 보냈다`);
     flash('fin',`${ROLES[to].n}에게 ${amt}C 송금${to==='spy'?' · 은행 기록이 남음':''}`);return}
   if(k==='bm'){if(role!=='inf'||ph!=='info')return;const t=BM[int(a.t)];const arc=ARCS[a.arc]?a.arc:null;if(!t||!arc)return;
     if(G.cash.inf<t.c)return flash('inf','자금이 부족합니다');
@@ -403,6 +443,7 @@ function doAction(role,a){
     if(role==='inf'){if(ph!=='relay')return;if(G.msgN>=2)return flash('inf','이번 라운드 메시지 2개를 모두 썼습니다');G.msgN++}
     else if(role==='spy'){if(ph!=='relay'&&ph!=='field')return;if(G.repN>=1)return flash('spy','이번 라운드 답장을 이미 보냈습니다');G.repN++}
     else return;
+    if(role==='inf'&&BANNED.some(w=>t.replace(/\s/g,'').includes(w)))misDone('inf','noisy');checkWord(role,t);
     G.tap+=scoreMsg(t);G.msgs.push({w:role,t,rd:G.rd});G.msgs=G.msgs.slice(-6);return}
   if(k==='memo'){if(ph!=='brief'||!ROLES[role])return;G.memo[role]=typeof a.t==='string'?a.t.replace(/[\u0000-\u0008\u000b-\u001f]/g,'').slice(0,400):'';return}
   if(k==='cb'){if(ph!=='brief')return;
@@ -414,7 +455,7 @@ function doAction(role,a){
       for(const pl of CB_EXTRA){if(!G.cb.some(x=>x[0]===pl)&&pool.length)G.cb.push([pl,pool.pop()])}G.cb=G.cb.slice(0,40);return}
     return}
   if(k==='hq'){if((role!=='inf'&&role!=='fin')||!inRound)return;const t=clean(a.t,120);if(!t)return;
-    G.hq.push({w:role,t,rd:G.rd});G.hq=G.hq.slice(-10);flash(role==='inf'?'fin':'inf',`본부 회선: ${t.slice(0,30)}`);return}
+    checkWord(role,t);G.hq.push({w:role,t,rd:G.rd});G.hq=G.hq.slice(-10);flash(role==='inf'?'fin':'inf',`본부 회선: ${t.slice(0,30)}`);return}
   if(k==='fx'){if(role!=='inf'||!inRound)return;const e=G.cl.find(c=>c[0]===int(a.i));if(!e||e[1])return;if(G.cash.inf<40)return flash('inf','자금이 부족합니다');
     G.cash.inf-=40;e[1]=CLUES[e[0]].r?1:2;flash('inf',`포렌식 결과: ${CLUES[e[0]].t} → ${CLUES[e[0]].r?'진본':'가짜'}`);return}
   if(k==='esc'){if(role!=='inf'||ph!=='escape')return;const m=int(a.m);if(!TRANS[m])return;if(G.cash.inf<TRANS[m].c)return flash('inf','자금이 부족합니다. 자금책에게 긴급 송금을 받으세요');
@@ -424,11 +465,34 @@ function doAction(role,a){
   if(k==='ib'){const it=G.inbox[role]?.find(x=>x.id===int(a.id));if(!it||it.st)return;
     if(!a.acc){it.st=2;return}
     it.st=1;
-    if(G.ibT[it.id]==='rec'){G.da[role]=true;G.daLast[role]=G.rd;it.res='흑조와 손을 잡았다';flash(role,'흑조와 손을 잡았습니다. 2라운드 안에 암호 단어를 넘겨야 보상이 이어집니다')}
+    if(G.ibT[it.id]==='rec'){
+      if(!G.daRole&&!G.conf){G.daRole=role;G.da={[role]:true};G.drep=0;it.res='흑조와 손을 잡았다';hl(role,'흑조에 합류했다. 핸들러가 매 라운드 임무를 준다');G.mis[role]=newMission(role);hl(role,'새 임무: '+G.mis[role].t);flash(role,'흑조와 손을 잡았습니다. 흑조 연락선을 확인하세요')}
+      else{const others=['fin','inf','spy'].filter(r=>r!==role);const hint=G.daRole?(rnd()<.6?G.daRole:pick(others.filter(r=>r!==G.daRole).concat(others))):'none';
+        G.tri[role]={hint,cut:false};it.res='흑조는 당신을 믿는다';hl(role,'흑조의 충성 테스트에 합격한 척했다. 당신은 삼중 스파이다');G.mis[role]=newMission(role);flash(role,'삼중 스파이가 되었습니다. 흑조 연락선을 확인하세요')}}
     else{it.res='상대는 더 이상 연락하지 않았다';flash(role,'상대는 답이 없다')}
     return}
-  if(k==='leak'){if(!G.da[role]||!inRound)return;const w=clean(a.w,12);if(w.length<2)return;
-    if(!G.leaked.includes(w))G.leaked.push(w);G.leaked=G.leaked.slice(-10);G.daLast[role]=G.rd;G.cash[role]+=60;flash(role,`"${w}"를 흑조에 넘겼다 · +60C`);return}
+  if(k==='leak'){if(G.daRole!==role||!inRound)return;const w=clean(a.w,12);if(w.length<2)return;
+    if(G.leaked.includes(w))return flash(role,'이미 넘긴 단어입니다');G.leaked.push(w);G.leaked=G.leaked.slice(-10);G.drep+=1;hl(role,`암호 "${w}"를 넘겼다 (평판 +1)`);flash(role,`"${w}"를 흑조에 넘겼다 · 평판 +1`);return}
+  if(k==='blk'){if(G.daRole!=='fin'||role!=='fin'||!inRound)return;const amt=clamp(int(a.amt),1,1e7);if(amt>G.cash.fin)return flash('fin','현금이 부족합니다');
+    G.cash.fin-=amt;G.blk+=amt;hl('fin',`흑조 지갑으로 ${amt}C 송금`);if(G.blk>=150)misDone('fin','blk');else flash('fin',`흑조 지갑으로 ${amt}C 보냈다 (이번 라운드 ${G.blk}C)`);return}
+  if(k==='pos'){if(G.daRole!=='inf'||role!=='inf'||ph!=='field')return;G.posLeak=true;hl('inf','현장 요원의 좌표를 흑조에 넘겼다');misDone('inf','pos');return}
+  if(k==='swap'){if(G.daRole!=='spy'||role!=='spy'||!inRound)return;const reals=G.cl.filter(c=>CLUES[c[0]].r);if(!reals.length)return flash('spy','바꿔칠 진본이 없습니다');
+    const e=pick(reals);G.cl=G.cl.filter(c=>c!==e);G.lost.push(e[0]);
+    const ds=remaining(i=>CLUES[i].a===CLUES[e[0]].a&&!CLUES[i].r);if(ds.length){const d=pick(ds);G.cl.push([d,0,e[2]])}
+    hl('spy',`진본 「${CLUES[e[0]].t}」를 흑조에 넘기고 바꿔치기했다`);misDone('spy','swap');return}
+  if(k==='empty'){if(G.daRole!=='spy'||role!=='spy'||ph!=='field')return;G.emptyOn=true;flash('spy','빈손 보고를 켰다. 이번 수색에서 찾은 증거는 흑조로 간다');return}
+  if(k==='erase'){if(G.daRole!==role||!inRound)return;if(G.drep<2)return flash(role,'평판이 부족합니다');
+    const t=G.tr.slice().reverse().find(x=>!x.del&&G.trT[x.id]&&G.trT[x.id].real&&G.trT[x.id].by===role);if(!t)return flash(role,'지울 흔적이 없습니다');
+    G.drep-=2;t.del=1;G.trT[t.id].er=1;hl(role,`R${t.rd}의 흔적을 지웠다 (평판 −2)`);flash(role,'흔적을 지웠다');return}
+  if(k==='frame'){if(G.daRole!==role||!inRound)return;if(G.drep<3)return flash(role,'평판이 부족합니다');
+    G.drep-=3;addTrace(pick(FRAMETX),role,false);hl(role,'동료 두 명에게 누명을 씌우는 흔적을 남겼다 (평판 −3)');flash(role,'가짜 흔적을 심었다');return}
+  if(k==='conf'){if(G.daRole!==role||!inRound)return;
+    G.conf=role;G.wasDA=role;G.daRole=null;G.da={};G.drep=0;delete G.mis[role];G.al+=20;
+    const arcs=['A','B','C'].filter(x=>remaining(i=>CLUES[i].a===x&&CLUES[i].r).length);let it=null;if(arcs.length)it=makeIntel(pick(arcs),100,'conf');
+    LOG(['conf',role,it?it.a:'',it?it.s:-1]);hl(role,'흑조와의 거래를 털어놓았다');return}
+  if(k==='inv'){if(!inRound||!ROLES[a.t]||a.t===role)return;if(G.invN[role]>=2)return flash(role,'뒷조사는 게임당 2번입니다');if(G.cash[role]<100)return flash(role,'100C가 필요합니다');
+    G.cash[role]-=100;G.invN[role]++;const truth=G.daRole===a.t;const res=rnd()<.75?truth:!truth;G.inv[role].push({t:a.t,r:res?1:0,rd:G.rd});
+    flash(role,`뒷조사 결과: ${ROLES[a.t].n}는 ${res?'수상하다':'깨끗해 보인다'} (정확도 75%)`);return}
   if(k==='vote'){if(ph!=='final')return;G.votes[role]=['fin','inf','spy','none'].includes(a.v)?a.v:'none';return}
   if(k==='rep'){if(role!=='inf'||ph!=='final'||!Array.isArray(a.r))return;G.rep=a.r.slice(0,15).map(int);return}
 }
@@ -439,12 +503,13 @@ function resolveEscape(m){
   else{LOG(['esc',m,0,p]);endGame('caught',m)}
 }
 function resolveRound(){
-  const pen=G.al>=50;
+  const pen=G.al>=50,skipped=G.skip;
   if(G.skip){LOG(['skip']);G.hid=false}
   else if(G.pend){const{a,x}=G.pend;G.hid=false;
-    if(a==='go'){G.ex+=pen?10:5;G.al+=4;const here=remaining(i=>G.src[i]===x);const ch=Math.min(.95,.65+.1*G.ac)-(pen?.15:0);
+    if(a==='go'){G.ex+=pen?10:5;G.al+=4;const here=remaining(i=>G.src[i]===x);const ch=Math.min(.95,.65+.1*G.ac)-(pen?.15:0)-(G.posLeak?.3:0);
       if(PEOPLE.includes(x))G.met=true;
-      if(here.length&&rnd()<ch){const it=pick(here);addClue(it,0);LOG(['go',x,it])}else LOG(['go',x,-1])}
+      const empty=G.emptyOn&&G.daRole==='spy';if(empty)misDone('spy','empty');
+      if(here.length&&rnd()<ch){const it=pick(here);if(empty){G.lost.push(it);hl('spy',`「${CLUES[it].t}」를 찾았지만 흑조에 넘겼다`);LOG(['go',x,-1])}else{addClue(it,0);LOG(['go',x,it])}}else LOG(['go',x,-1])}
     else if(a==='inf'){if(G.ac<3){G.ac++;G.ex+=15;G.al+=3;LOG(['inf',G.ac])}else LOG(['infmax'])}
     else if(a==='steal'){if(G.ac>=2){G.ex+=G.ac>=3?12:20;G.al+=5;const rs=remaining(i=>CLUES[i].r);
       if(rs.length&&rnd()<.8){const it=pick(rs);addClue(it,1);LOG(['steal',it])}else LOG(['steal',-1])}else LOG(['nosteal'])}
@@ -453,8 +518,19 @@ function resolveRound(){
   }else{G.hid=false;LOG(['idle'])}
   G.skip=false;
   G.ex+=G.ac*2;
-  for(const role in G.da){if(G.rd-G.daLast[role]<=2){if(role==='fin')G.cash.fin+=80;else if(role==='inf')G.trace=Math.max(0,G.trace-10);else G.ex-=8}
-    else flash(role,'흑조가 보상을 끊었다. 암호 단어를 넘기면 다시 이어진다')}
+  for(const role of ['fin','inf','spy']){const ms=G.mis[role];if(!ms)continue;
+    if(ms.k==='dry'&&G.spyPaid<50)ms.done=true;
+    if(ms.k==='meet'&&!skipped&&G.pend&&G.pend.a==='go'&&G.pend.x===ms.p)ms.done=true;
+    const isDA=G.daRole===role;
+    if(ms.done){G.ign[role]=0;hl(role,`임무 완료: ${ms.t}${isDA?` (평판 +${ms.rp})`:''}`);
+      if(isDA){G.drep+=ms.rp;if(ms.tr&&rnd()*100<ms.tr)addTrace(ms.tx,role,true)}}
+    else{G.ign[role]=(G.ign[role]||0)+1;hl(role,`임무 무시 (${G.ign[role]}회 연속)`);
+      if(isDA&&G.ign[role]===2)flash(role,'핸들러: 한 번만 더 무시하면 네 동료들에게 알리겠다');
+      if(isDA&&G.ign[role]>=3){G.ign[role]=0;LOG(['threat',role]);hl(role,'흑조가 팀에 익명 제보를 흘렸다')}
+      if(G.tri[role]&&G.ign[role]>=3){G.tri[role].cut=true;delete G.mis[role];hl(role,'흑조가 의심하며 연락을 끊었다')}}}
+  if(G.daRole){const r=G.daRole,t=G.drep>=8?2:G.drep>=4?1:0;
+    if(r==='fin')G.cash.fin+=[60,100,150][t];else if(r==='inf')G.trace=Math.max(0,G.trace-[5,10,15][t]);else G.ex-=[5,10,15][t];
+    if(G.drep>=8&&G.fakeKnown<0){const ds=CLUES.map((c,i)=>i).filter(i=>!CLUES[i].r);G.fakeKnown=pick(ds);hl(r,`흑조 내부 자료: 「${CLUES[G.fakeKnown].t}」는 우리가 흘린 가짜다`)}}
   const er=rnd();
   if(er<.12){G.al+=10;LOG(['ev','raid'])}else if(er<.2){G.cash.inf+=60;LOG(['ev','tipster'])}else if(er<.28){G.ex+=10;LOG(['ev','audit'])}else if(er<.36){G.al-=8;LOG(['ev','calm'])}
   const old=G.sp.map(h=>h[h.length-1]);
@@ -471,7 +547,10 @@ function resolveRound(){
 }
 function startFinal(){setPhase('final');G.votes={};G.rep=null}
 function netWorth(){return G.cash.fin+G.cash.inf+G.cash.spy+G.hold.reduce((a,n,i)=>a+n*G.sp[i][G.sp[i].length-1],0)+G.ch.reduce((a,n,i)=>a+n*G.cp[i][G.cp[i].length-1],0)}
-function endGame(k,m){G.end={k,sc:Math.round(netWorth()/10)-1000,r:[],nw:netWorth(),da:Object.keys(G.da),m:m??-1};G.ph='end'}
+function endExtra(){const who=G.daRole||G.wasDA;return{da:who?[who]:[],tri:Object.keys(G.tri),rep:G.drep,
+  hl:who?G.hlog[who].slice(-12):[],thl:Object.keys(G.tri).map(r=>[r,G.hlog[r].slice(-6)]),
+  trv:G.tr.map(t=>({rd:t.rd,t:t.t,s:t.s,by:G.trT[t.id].by,real:G.trT[t.id].real,er:G.trT[t.id].er}))}}
+function endGame(k,m){G.end=Object.assign(endExtra(),{k,sc:Math.round(netWorth()/10)-1000,r:[],nw:netWorth(),m:m??-1,pe:null});G.ph='end'}
 function finish(){
   const f=foundSet();const rp=G.rep||G.cl.filter(c=>c[1]!==2).map(c=>c[0]);
   const R=[...new Set(rp)].filter(i=>f.has(i));
@@ -480,23 +559,26 @@ function finish(){
   const k=fk>=2?'trap':(done.join('')||'none');
   const cnt={};for(const r in G.seats){const v=G.votes[r]||'none';cnt[v]=(cnt[v]||0)+1}
   let tg=null;for(const v in cnt)if(cnt[v]>=2&&v!=='none')tg=v;
-  const das=Object.keys(G.da);
-  const vo=das.length?(tg&&G.da[tg]?'catch':'miss'):(tg?'wrong':'clean');
-  const sc=done.length*1000+R.filter(i=>CLUES[i].r).length*100-fk*400+Math.round(netWorth()/10)-(G.fl.burn?300:0)+({catch:500,miss:-300,wrong:-200,clean:0})[vo];
-  G.end={k,fk,sc,r:R,nw:netWorth(),da:das,tg,vo,m:-1};G.ph='end';
+  const da=G.daRole;let vo,pe=null;
+  if(da)vo=tg===da?'catch':'miss';else if(G.conf)vo=(tg&&tg!==G.conf)?'wrong':'confessed';else vo=tg?'wrong':'clean';
+  if(da)pe=tg===da?'caught':(G.drep>=10&&k!=='ABC')?'boss':G.drep>=5?'double':'quiet';else if(G.conf)pe='back';
+  const triR=Object.keys(G.tri);const trap2=!!(da&&tg===da&&triR.some(r=>G.votes[r]===da));
+  const sc=done.length*1000+R.filter(i=>CLUES[i].r).length*100-fk*400+Math.round(netWorth()/10)-(G.fl.burn?300:0)+({catch:500,miss:-300,wrong:-200,clean:0,confessed:0})[vo]+(trap2?300:0);
+  G.end=Object.assign(endExtra(),{k,fk,sc,r:R,nw:netWorth(),tg,vo,pe,trap2,m:-1});G.ph='end';
 }
 function viewOf(){
   const v={};for(const k of['gen','gid','ph','rd','T','pe','tk','cb','memo','al','ex','ac','sp','cp','dead','cl','lg','seats','on','rdy','end','fl','esc'])v[k]=G[k];
-  v.nk=Object.entries(G.nk);v.lk=G.ph==='end'?G.leaked:[];return v;
+  v.nk=Object.entries(G.nk);v.lk=G.ph==='end'?G.leaked:[];v.tr=G.tr.map(t=>({rd:t.rd,t:t.del?'로그 일부가 삭제됨':t.t,s:t.del?[]:t.s,del:t.del}));v.cf=G.conf;return v;
 }
 function pvOf(role){
-  const b={cash:G.cash[role],ib:G.inbox[role],da:!!G.da[role],daOn:!!G.da[role]&&G.rd-G.daLast[role]<=2,fl:G.flash[role]||null};
+  const b={cash:G.cash[role],ib:G.inbox[role],da:G.daRole===role,fl:G.flash[role]||null,inv:G.inv[role],invN:G.invN[role],cf:G.conf===role};
+  if(G.daRole===role||G.tri[role]||G.conf===role){const m=G.mis[role];Object.assign(b,{rep:G.drep,mis:m?{t:m.t,k:m.k,done:m.done}:null,hl:G.hlog[role].slice(-8),fk:G.daRole===role?G.fakeKnown:-1,tri:G.tri[role]||null,blk:G.blk,emp:G.emptyOn,pl:G.posLeak,canErase:G.tr.some(t=>!t.del&&G.trT[t.id]&&G.trT[t.id].real&&G.trT[t.id].by===role)})}
   if(role==='fin')Object.assign(b,{hold:G.hold,ch:G.ch,tips:G.tips,hq:G.hq});
   if(role==='inf')Object.assign(b,{intel:G.intel.slice(-12).map(i=>[i.id,i.a,i.s,i.acc,i.f]),news:G.news,ht:G.ht.map(h=>[h.id,h.s,h.d,h.p,h.rd,h.fw]),hacks:G.hacks,msgN:G.msgN,
     msgs:G.msgs,hq:G.hq,risk:G.tap>=45?2:G.tap>=20?1:0,trace:G.trace});
   if(role==='spy')Object.assign(b,{msgs:G.msgs,pend:G.pend,repN:G.repN,skip:G.skip,hid:G.hid});
   let s=JSON.stringify(b);
-  while(s.length>3700){if(b.hq&&b.hq.length>3)b.hq=b.hq.slice(1);else if(b.msgs&&b.msgs.length>2)b.msgs=b.msgs.slice(1);else if(b.intel&&b.intel.length>4)b.intel=b.intel.slice(1);else if(b.ib.length>1)b.ib=b.ib.slice(1);else break;s=JSON.stringify(b)}
+  while(s.length>3700){if(b.hl&&b.hl.length>3)b.hl=b.hl.slice(1);else if(b.hq&&b.hq.length>3)b.hq=b.hq.slice(1);else if(b.msgs&&b.msgs.length>2)b.msgs=b.msgs.slice(1);else if(b.intel&&b.intel.length>4)b.intel=b.intel.slice(1);else if(b.ib.length>1)b.ib=b.ib.slice(1);else break;s=JSON.stringify(b)}
   return b;
 }
 function hostTick(){
@@ -774,7 +856,9 @@ function logLine(e){switch(e[0]){
   case'ins':return`금융감독원 · ${STOCKS[e[1]].n} 내부자거래 조사, 수익 ${fmt(e[2])}C 동결`;
   case'tap':return'⚠ 경찰 감청망에 통신이 걸렸다. 다음 라운드는 긴급 탈출부터';
   case'esc':return`탈출 · ${TRANS[e[1]].n} (확률 ${e[3]}%) → ${e[2]?'성공':'실패'}`;
-  case'burn':return'흑조 비상 경계 · 작전 조기 철수';}return''}
+  case'burn':return'흑조 비상 경계 · 작전 조기 철수';
+  case'threat':return`익명 제보 · "너희 중 한 명은 우리 편이다. 힌트: 그는 ${HINT[e[1]]}."`;
+  case'conf':return`자수 · ${ROLES[e[1]].n}가 흑조와의 거래를 털어놓았다${e[3]>=0?`. 제보: [${ARCS[e[2]].n}] 진짜 증거 → ${SRC[e[3]]}`:''} (흑조 경계도 +20)`;}return''}
 function dossier(reveal){
   const by={A:[],B:[],C:[]};V.cl.forEach(c=>by[CLUES[c[0]].a].push(c));
   return`<section class="sheet"><div class="row between"><span class="lab">사건 파일 · 확보 증거 ${V.cl.length}/15</span><span class="note">사건마다 진본 3개</span></div>
@@ -789,14 +873,46 @@ function inboxHTML(){
   return`<div class="inbox col" style="gap:8px">${P.ib.slice().reverse().map(m=>`<div class="msg"><span class="lab">라운드 ${m.rd} · 발신자 불명</span><span>${esc(m.m)}</span>${m.at?`<span class="note">첨부: ${esc(m.at)}</span>`:''}
    ${m.st===0?`<div class="row"><button class="sm red" onclick="sendAct({k:'ib',id:${m.id},acc:1})">협조한다</button><button class="sm ghost" onclick="sendAct({k:'ib',id:${m.id},acc:0})">무시</button></div>`:`<span class="pill dim">${m.st===1?esc(m.res||'수락함'):'무시함'}</span>`}</div>`).join('')}</div>`;
 }
+let confArm=false;
 function daPanel(){
-  if(!P||!P.da)return'';
-  return`<section class="sheet da"><span class="lab">흑조 연락선 · 나만 보임</span><h3>당신은 흑조와 손을 잡았다</h3>
-   <p class="note">${P.daOn?'보상이 이어지고 있습니다.':'보상이 끊겼습니다.'} 브리핑 때 정한 암호 단어를 넘기면 +60C, 보상이 2라운드 연장됩니다. 넘긴 단어는 감청 금지어(+25)가 됩니다.</p>
-   <form id="leakF" class="row"><input id="leakIn" type="text" maxlength="12" placeholder="넘길 암호 단어" aria-label="넘길 암호 단어"><button type="submit" class="red sm">흑조에 넘기기</button></form>
-   <p class="note">최종 심문에서 동료 두 명이 당신을 지목하면 들킵니다.</p></section>`;
+  if(!P)return'';
+  const mis=P.mis?`<div class="inbox"><div class="msg"><span class="lab">이번 라운드 임무</span><span>${esc(P.mis.t)}</span><span class="pill ${P.mis.done?'ok':'wait'}" style="align-self:flex-start">${P.mis.done?'완료':'진행 중'}</span></div></div>`:'';
+  const log=P.hl&&P.hl.length?`<div class="hlog">${P.hl.slice().reverse().map(h=>`<div><span class="note">R${h.rd}</span> ${esc(h.t)}</div>`).join('')}</div>`:'';
+  if(P.cf)return`<section class="sheet"><span class="lab">흑조 연락선 · 끊김</span><p>당신은 흑조와의 거래를 털어놓았습니다. 최종 심문에서 지목되어도 감점이 없습니다.</p>${log}</section>`;
+  if(P.tri){const h=P.tri.hint;return`<section class="sheet tri"><span class="lab">흑조 연락선 · 나만 보임</span><h3>당신은 삼중 스파이다</h3>
+    <p>흑조는 당신을 자기편으로 믿지만, 당신은 팀 편입니다. ${h==='none'?'흑조 안에 이미 심어 둔 사람은 없는 것 같습니다.':`흑조 쪽에 이미 한 명이 있습니다. 핸들러의 말투로 보아 <b>${ROLES[h].n}</b>일 가능성이 있습니다 (맞을 확률 60%).`}</p>
+    ${P.tri.cut?'<p class="note">흑조가 의심하며 연락을 끊었습니다.</p>':`${mis}<p class="note">임무는 흑조를 속이기 위한 연기입니다. 해도 흑조에 도움이 되지 않지만, 3라운드 연속 무시하면 흑조가 연락을 끊습니다.</p>`}
+    <p class="note">최종 심문에서 이중 스파이를 정확히 지목하면 「이중의 덫」 보너스를 받습니다.</p>${log}</section>`}
+  if(!P.da)return'';
+  const ph=V.ph,inRound=['info','relay','field','escape'].includes(ph),role=myRole();
+  const tier=P.rep>=8?'큰 보상':P.rep>=4?'중간 보상':'소액 보상';
+  const reward={fin:['+60C','+100C','+150C'],inf:['추적도 −5','추적도 −10','추적도 −15'],spy:['발각도 −5','발각도 −10','발각도 −15']}[role][P.rep>=8?2:P.rep>=4?1:0];
+  let act='';
+  if(role==='fin')act=`<form id="blkF" class="row"><input id="blkAmt" type="number" min="1" step="10" value="150" aria-label="흑조 지갑 송금액"><button type="submit" class="red sm" ${inRound?'':'disabled'}>흑조 지갑으로 송금</button><span class="note">이번 라운드 ${P.blk}C</span></form>`;
+  if(role==='inf')act=`<div class="row"><button class="red sm" ${ph==='field'&&!P.pl?'':'disabled'} onclick="sendAct({k:'pos'})">${P.pl?'좌표 유출함':'좌표 유출'}</button><span class="note">현장 단계에서만. 현장 요원의 수색 성공률 −30%</span></div>`;
+  if(role==='spy')act=`<div class="row"><button class="red sm" ${inRound?'':'disabled'} onclick="sendAct({k:'swap'})">증거 바꿔치기</button><button class="red sm" ${ph==='field'&&!P.emp?'':'disabled'} onclick="sendAct({k:'empty'})">${P.emp?'빈손 보고 켜짐':'빈손 보고'}</button></div>`;
+  return`<section class="sheet da"><span class="lab">흑조 연락선 · 나만 보임</span><div class="row between"><h3>당신은 흑조의 이중 스파이다</h3><span class="pill bad">흑조 평판 ${P.rep}</span></div>
+   <p class="note">매 라운드 ${tier}: ${reward}. 평판 10 이상으로 끝까지 들키지 않으면 단독 승리입니다(팀이 진 엔딩을 내면 제외).</p>
+   ${mis}${act}
+   <form id="leakF" class="row"><input id="leakIn" type="text" maxlength="12" placeholder="넘길 암호 단어" aria-label="넘길 암호 단어"><button type="submit" class="ghost sm" ${inRound?'':'disabled'}>암호 넘기기 (평판 +1)</button></form>
+   <div class="row"><button class="ghost sm" ${inRound&&P.rep>=2&&P.canErase?'':'disabled'} onclick="sendAct({k:'erase'})">흔적 지우기 (평판 −2)</button><button class="ghost sm" ${inRound&&P.rep>=3?'':'disabled'} onclick="sendAct({k:'frame'})">누명 씌우기 (평판 −3)</button>
+    <button class="${confArm?'red':'ghost'} sm" ${inRound?'':'disabled'} onclick="if(confArm){confArm=false;sendAct({k:'conf'})}else{confArm=true;render();setTimeout(()=>{confArm=false;render()},4000)}">${confArm?'정말 자수합니다':'자수하기'}</button></div>
+   ${P.fk>=0?`<p class="note">흑조 내부 자료: 「${esc(CLUES[P.fk].t)}」는 가짜다.</p>`:''}
+   <p class="note">임무를 3라운드 연속 무시하면 흑조가 팀에 당신의 힌트를 흘립니다. 임무마다 감찰 로그에 흔적이 남을 수 있습니다.</p>${log}</section>`;
 }
-function bindDA(){const f=$('#leakF');if(f)f.onsubmit=e=>{e.preventDefault();const w=clean($('#leakIn').value,12);if(w.length<2)return toast('두 글자 이상 입력하세요');sendAct({k:'leak',w});$('#leakIn').value=''}}
+function bindDA(){
+  const f=$('#leakF');if(f)f.onsubmit=e=>{e.preventDefault();const w=clean($('#leakIn').value,12);if(w.length<2)return toast('두 글자 이상 입력하세요');sendAct({k:'leak',w});$('#leakIn').value=''};
+  const bf=$('#blkF');if(bf)bf.onsubmit=e=>{e.preventDefault();const amt=int($('#blkAmt').value);if(amt<1)return toast('금액을 입력하세요');sendAct({k:'blk',amt})};
+}
+function traceSheet(){
+  const role=myRole();const tr=(V.tr||[]).slice().reverse();
+  const inv=P&&P.inv?P.inv:[];const left=P?2-P.invN:0;const inRound=['info','relay','field','escape'].includes(V.ph);
+  return`<section class="sheet"><span class="lab">내부 감찰 로그 · 모두에게 공개</span>
+   ${tr.length?tr.map(t=>`<div class="trace ${t.del?'del':''}"><span class="note">라운드 ${t.rd}</span><span>${esc(t.t)}</span>${t.s&&t.s.length?`<span class="note">용의자: ${t.s.map(r=>ROLES[r].n).join(' 또는 ')}</span>`:''}</div>`).join(''):'<span class="note">아직 남은 흔적이 없습니다.</span>'}
+   ${role&&P?`<div class="row"><span class="note">뒷조사 (100C, 남은 ${left}회, 정확도 75%)</span>${Object.keys(ROLES).filter(r=>r!==role).map(r=>`<button class="ghost sm" ${inRound&&left>0&&P.cash>=100?'':'disabled'} onclick="sendAct({k:'inv',t:'${r}'})">${ROLES[r].n}</button>`).join('')}</div>
+   ${inv.length?`<div class="col" style="gap:4px">${inv.map(x=>`<span class="note">R${x.rd} 뒷조사: ${ROLES[x.t].n} → <b>${x.r?'수상함':'깨끗함'}</b> (나만 보임)</span>`).join('')}</div>`:''}`:''}
+  </section>`;
+}
 
 /* ================= 암호장 ================= */
 function cbOf(){return V&&Array.isArray(V.cb)?V.cb:[]}
@@ -842,8 +958,8 @@ function renderPlay(app){
   if(!role)body=`<section class="sheet"><span class="lab">관전</span><p class="mute">맡은 역할이 없습니다. 연결이 끊긴 자리가 있으면 이어받을 수 있습니다.</p>${seatCards()}</section>`;
   else if(!P)body=`<section class="sheet"><p class="mute">역할 채널에 연결 중입니다.</p></section>`;
   else if(role==='fin')body=finUI();else if(role==='inf')body=infUI();else body=spyUI();
-  const side=role==='inf'?`<div class="grid"><div class="col">${daPanel()}${logSheet()}</div><div class="col">${hostPanel()}</div></div>`
-    :`<div class="grid"><div class="col">${dossier(false)}</div><div class="col">${daPanel()}${logSheet()}${hostPanel()}</div></div>`;
+  const side=role==='inf'?`<div class="grid"><div class="col">${daPanel()}${logSheet()}</div><div class="col">${traceSheet()}${hostPanel()}</div></div>`
+    :`<div class="grid"><div class="col">${dossier(false)}${traceSheet()}</div><div class="col">${daPanel()}${logSheet()}${hostPanel()}</div></div>`;
   app.innerHTML=`<div class="col">${topbar()}${statusBar()}${body}${side}</div>`;
   bindHost();bindDA();bindRole();
 }
@@ -985,21 +1101,27 @@ function renderFinal(app){
    ${role==='inf'?`<section class="sheet"><span class="lab">최종 보고서</span><h2>보고서에 넣을 증거</h2><p class="note">사건마다 진본 3개가 모두 들어가야 해결로 인정됩니다. 가짜가 2개 이상이면 역정보 엔딩입니다.</p>
     <div class="col" style="gap:6px">${V.cl.map(c=>`<label class="row"><input type="checkbox" id="rp${c[0]}" ${c[1]===2?'':'checked'}> <b>${esc(CLUES[c[0]].t)}</b> <span class="note">${ARCS[CLUES[c[0]].a].n} · ${c[1]===1?'진본':c[1]===2?'가짜':'미확인'}</span></label>`).join('')||'<span class="note">확보한 증거가 없습니다.</span>'}</div>
     <div class="row"><button class="red" onclick="sendAct({k:'rep',r:V.cl.map(c=>c[0]).filter(i=>document.getElementById('rp'+i)?.checked)});toast('보고서를 제출했습니다')">보고서 제출</button></div></section>`:'<section class="sheet"><p class="mute">정보원이 보고서를 쓰는 중입니다.</p></section>'}
-   </div><div class="col">${dossier(false)}${daPanel()}</div></div></div>`;
+   </div><div class="col">${traceSheet()}${dossier(false)}${daPanel()}</div></div></div>`;
   bindDA();
 }
 function renderEnd(app){
   const e=V.end;const en=ENDINGS[e.k]||ENDINGS.none;const over=e.k==='caught'||e.k==='exposed';
   const script=e.k==='caught'?`…오후 5시 42분. 요원은 ${e.m>=0?TRANS[e.m].n+'(으)로 ':''}빠져나가려 했지만, 출구엔 이미 경찰이 서 있었다. 수갑이 채워지는 소리가 무전기 너머로 들렸다. "현장 요원 체포. 통신 기록 전부 확보했다." 작전은 여기서 끝났다.`
     :e.k==='exposed'?'…요원이 금고 문을 열던 순간 복도의 불이 켜졌다. 흑조의 보안팀장이 웃으며 말했다. "처음부터 알고 있었어." 그 뒤로 요원의 신호는 다시 잡히지 않았다.':'';
-  const daT=e.da&&e.da.length?`흑조와 손잡은 요원: ${e.da.map(r=>`${ROLES[r].n}(${esc(nickOf(V.seats[r]))})`).join(', ')}`:'흑조와 손잡은 요원은 없었다.';
+  const daT=e.da&&e.da.length?`흑조와 손잡은 요원: ${e.da.map(r=>`${ROLES[r].n}(${esc(nickOf(V.seats[r]))})`).join(', ')}${V.cf?' · 도중에 자수함':` · 흑조 평판 ${e.rep}`}`:'흑조와 손잡은 요원은 없었다.';
+  const triT=e.tri&&e.tri.length?` · 삼중 스파이: ${e.tri.map(r=>`${ROLES[r].n}(${esc(nickOf(V.seats[r]))})`).join(', ')}`:'';
+  const pe=e.pe&&PERSONAL[e.pe]?`<div class="sheet da" style="gap:8px"><span class="lab">그런데… 이중 스파이의 결말</span><h2>${PERSONAL[e.pe][0]}</h2><p>${PERSONAL[e.pe][1]}</p></div>`:'';
+  const t2=e.trap2?`<p><b>${PERSONAL.trap2[0]}</b> · ${PERSONAL.trap2[1]} (+300점)</p>`:'';
+  const hlv=e.hl&&e.hl.length?`<details><summary class="lab" style="cursor:pointer">핸들러 채팅 기록 공개</summary><div class="hlog" style="max-height:none">${e.hl.map(h=>`<div><span class="note">R${h.rd}</span> ${esc(h.t)}</div>`).join('')}</div></details>`:'';
+  const trv=e.trv&&e.trv.length?`<details><summary class="lab" style="cursor:pointer">감찰 로그의 진실</summary><div class="col" style="gap:6px">${e.trv.map(t=>`<div class="trace"><span class="note">라운드 ${t.rd}</span><span>${esc(t.t)}</span><span class="note">${t.real?`진짜 흔적 · 범인 ${ROLES[t.by].n}${t.er?' · 나중에 지워짐':''}`:`<b>누명</b> · ${ROLES[t.by].n}가 심은 가짜 흔적`}</span></div>`).join('')}</div></details>`:'';
   const rows=(e.r||[]).map(i=>`<tr><td>${esc(CLUES[i].t)}</td><td>${ARCS[CLUES[i].a].n}</td><td><span class="pill ${CLUES[i].r?'ok':'bad'}">${CLUES[i].r?'진본':'가짜'}</span></td></tr>`).join('');
   app.innerHTML=`<div class="col"><section class="sheet ending"><span class="stampbox">${over?'게임 오버':'작전 종료'}</span><h1>${en.t}</h1>
    ${script?`<p class="script">${script}</p>`:''}<p>${en.p}</p>
    ${!over&&e.vo?`<p><b>${VOTEOUT[e.vo][0]}</b> · ${VOTEOUT[e.vo][1]}</p>`:''}
    ${V.fl&&V.fl.burn?'<p class="mute">흑조가 비상 경계에 들어가 작전은 예정보다 일찍 철수했다.</p>':''}
    ${e.fk===1&&e.k!=='trap'?'<p class="mute">보고서에 섞인 가짜 증거 하나가 청문회에서 집중 공격을 받았다.</p>':''}
-   <p class="mute">${daT}${V.lk&&V.lk.length?` · 흑조에 넘어간 암호: ${V.lk.map(esc).join(', ')}`:''}</p>
+   ${t2}<p class="mute">${daT}${triT}${V.lk&&V.lk.length?` · 흑조에 넘어간 암호: ${V.lk.map(esc).join(', ')}`:''}</p>
+   ${pe}${hlv}${trv}
    <div class="row"><span class="lab">작전 평가</span><span class="mono" style="font-size:26px;font-weight:600">${fmt(e.sc)}점</span><span class="note">최종 총자산 ${fmt(e.nw)}C</span></div>
    ${rows?`<div class="tbl"><table><thead><tr><th>보고서 증거</th><th>사건</th><th>판정</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}
    <div class="row">${mode==='host'?'<button class="red" onclick="hostRestart()">같은 멤버로 새 작전</button>':'<span class="note">호스트가 새 작전을 열면 바로 이어집니다.</span>'}<button class="ghost" onclick="leaveRoom()">나가기</button></div></section>
@@ -1018,7 +1140,9 @@ $('#rulesBody').innerHTML=`
 <h3>공용 암호 메모장과 암호장</h3><p>브리핑 때 셋이 각자 자기 칸에 암호 메모를 자유롭게 적습니다. 메모장은 게임 내내 모두의 화면에 보입니다(게임 중엔 읽기 전용). 브리핑 때 원래 단어와 암호를 짝지어 적어 둡니다(자동 추천 가능). 게임 중에는 정보원 메신저에 '암호장으로 바꾸기' 버튼과 금지어 검사가, 현장 요원 휴대폰에는 자동 해독이 붙어서 외울 필요가 없습니다.</p>
 <h3>감청과 탈출</h3><p>메신저에서 금지어 원문 +20, 흑조에 넘어간 암호 +25, 3라운드 연속 같은 단어 +10, 40자 초과 +5, 은행으로 현장 요원에게 송금 +8. 감청 점수에 추적도의 절반을 더해 60 이상이면 다음 라운드는 긴급 탈출로 시작합니다. 정보원이 도보 25% · 버스 40% · 택시 60% · 퀵 오토바이 80% · 전세 헬기 95% 중에서 고르고, 실패하면 체포되어 게임 오버입니다.</p>
 <h3>금융감독원</h3><p>정보원이 전달한 종목을 그 라운드에 라운드 시작 현금의 50% 이상 사면, 그 종목 수익의 절반이 동결됩니다.</p>
-<h3>흑조의 역공작</h3><p>라운드마다 낮은 확률로 나에게만 연락이 옵니다. 자금책은 코인 메모, 정보원은 연락함, 현장 요원은 접선 중 직접 받습니다. 회유 60% · 이간질 30% · 진짜 제보 10%이고, 회유와 제보는 겉보기가 같고 첨부 정보의 정확도만 다릅니다(50% / 100%). 회유에 '협조한다'를 누르면 이중 스파이가 되어 보상을 받습니다. 2라운드 안에 암호 단어를 흑조에 넘겨야 보상이 이어집니다.</p>
+<h3>흑조의 역공작</h3><p>라운드마다 낮은 확률로 나에게만 연락이 옵니다. 자금책은 코인 메모, 정보원은 연락함, 현장 요원은 접선 중 직접 받습니다. 회유 60% · 이간질 30% · 진짜 제보 10%이고, 회유와 제보는 겉보기가 같고 첨부 정보의 정확도만 다릅니다(50% / 100%). 회유에 '협조한다'를 누르면 이중 스파이가 됩니다(아래 확장 규칙).</p>
+<h3>이중 스파이 (확장 규칙)</h3><p>회유를 수락하면 이중 스파이가 됩니다(한 게임에 1명). 핸들러가 매 라운드 임무를 주고, 성공하면 흑조 평판이 오릅니다. 평판이 높을수록 보상이 커지고, 8 이상이면 가짜 증거 하나를 알게 됩니다. 임무마다 확률적으로 <b>내부 감찰 로그</b>에 용의자 두 명을 가리키는 흔적이 남습니다. 이중 스파이는 흔적 지우기(평판 2), 누명 씌우기(평판 3), 암호 넘기기(평판 +1)를 쓸 수 있고, 한 번 <b>자수</b>할 수 있습니다(팀에 100% 정보 제공, 심문 감점 없음, 경계도 +20). 임무를 3라운드 연속 무시하면 흑조가 팀에 힌트를 흘립니다. 누구나 게임당 2번 100C로 동료를 뒷조사할 수 있습니다(정확도 75%, 결과는 나만 봄). 이중 스파이가 있는데 또 회유를 수락하면 <b>삼중 스파이</b>가 되어, 이중 스파이의 역할 힌트(60%)를 받습니다.</p>
+<p>이중 스파이 개인 엔딩: 평판 10 이상 + 지목 안 됨 + 팀이 진 엔딩이 아님 → 흑조 간부(단독 승리) · 평판 5~9 → 이중생활 · 지목됨 → 배신자 체포 · 자수 → 돌아온 요원 · 삼중 스파이가 정확히 지목 → 이중의 덫(+300).</p>
 <h3>엔딩</h3><ul><li>세 사건 해결: 그림자를 걷어내다 · 두 사건: 3종 · 한 사건: 3종 · 가짜 2개 이상: 역정보의 덫 · 없음: 빈 보고서</li><li>게임 오버: 경찰에 체포됨(탈출 실패), 흑조에 붙잡힘(발각도 100)</li><li>최종 심문: 쥐를 잡다 / 배신의 대가 / 의심의 밤 / 깨끗한 팀</li></ul>`;
 boot();
 </script>
