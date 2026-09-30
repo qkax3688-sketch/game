@@ -333,7 +333,7 @@ function newGame(keep){
 }
 const LOG=e=>G.cur.push(e);
 function flash(role,m){G.flash[role]={n:G.flSeq++,m}}
-function setPhase(ph){G.ph=ph;G.pe=Date.now();G.tk=0}
+function setPhase(ph){G.ph=ph;G.pe=Date.now();G.tk=0;G.rdy=readyNow()}
 function foundSet(){return new Set(G.cl.map(c=>c[0]))}
 function remaining(f){const s=foundSet();for(const i of G.lost)s.add(i);return CLUES.map((c,i)=>i).filter(i=>!s.has(i)&&f(i))}
 function makeIntel(arc,acc,from){
@@ -601,11 +601,16 @@ function hostTick(){
     for(const a of q.slice().sort((x,y)=>int(x&&x.n)-int(y&&y.n))){if(!a||typeof a!=='object')continue;const n=int(a.n);if(n<=(PROC[p.peer]||0))continue;PROC[p.peer]=n;
       if(typeof a.k==='string'){try{doAction(r,a)}catch(e){console.error(e)}}
       if(G.ph==='end')break}}
-  const key=`${G.gen}.${G.rd}.${G.ph}`;G.rdy={};for(const r in G.seats){const p=by.get(G.seats[r]);G.rdy[r]=!p||p.presence.rd===key}
   advance();publish();
 }
+function readyNow(){
+  // 매번 현재 단계 기준으로 새로 계산한다 (이전 단계의 '완료'가 다음 단계로 넘어가지 않도록)
+  const by=new Map(gamePeers().map(p=>[p.peer,p]));const key=`${G.gen}.${G.rd}.${G.ph}`;const o={};
+  for(const r of ['fin','inf','spy']){const p=by.get(G.seats[r]);o[r]=!p||p.presence.rd===key}
+  return o;
+}
 function advance(){
-  if(!G||G.ph==='lobby'||G.ph==='end')return;const now=Date.now();const allReady=['fin','inf','spy'].every(r=>G.rdy[r]);const el=(now-G.pe)/1000;
+  if(!G||G.ph==='lobby'||G.ph==='end')return;const now=Date.now();G.rdy=readyNow();const allReady=['fin','inf','spy'].every(r=>G.rdy[r]);const el=(now-G.pe)/1000;
   if(G.ph==='brief'){if(allReady)startRound()}
   else if(G.ph==='info'){const want=Math.min(3,Math.floor(el/20));while(G.tk<want){G.tk++;coinTick(false)}
     if(allReady)setPhase('relay')}
