@@ -580,7 +580,7 @@ function finish(){
 }
 function viewOf(){
   const v={};for(const k of['gen','gid','ph','rd','T','pe','tk','cb','memo','al','ex','ac','sp','cp','dead','cl','lg','seats','on','rdy','end','fl','esc'])v[k]=G[k];
-  v.nk=Object.entries(G.nk);v.lk=G.ph==='end'?G.leaked:[];v.tr=G.tr.map(t=>({rd:t.rd,t:t.del?'로그 일부가 삭제됨':t.t,s:t.del?[]:t.s,del:t.del}));v.cf=G.conf;return v;
+  v.nk=Object.entries(G.nk);v.wt=G.wt||[];v.lk=G.ph==='end'?G.leaked:[];v.tr=G.tr.map(t=>({rd:t.rd,t:t.del?'로그 일부가 삭제됨':t.t,s:t.del?[]:t.s,del:t.del}));v.cf=G.conf;return v;
 }
 function pvOf(role){
   const b={cash:G.cash[role],ib:G.inbox[role],da:G.daRole===role,fl:G.flash[role]||null,inv:G.inv[role],invN:G.invN[role],cf:G.conf===role};
@@ -605,10 +605,11 @@ function hostTick(){
   if(G.ph==='lobby'){
     for(const r in G.seats)if(G.seats[r]&&!by.has(G.seats[r]))G.seats[r]=null;
     for(const p of ps){const w=p.presence.w,cur=seatOf(p.peer);
-      if(!ROLES[w]){if(cur&&w==='')G.seats[cur]=null;continue}
+      if(!ROLES[w]){if(cur&&(w===''||w==='watch'))G.seats[cur]=null;continue}
       if(cur===w)continue;if(vacant(w)){if(cur)G.seats[cur]=null;G.seats[w]=p.peer}}
   }else for(const p of ps){const w=p.presence.w;if(ROLES[w]&&!seatOf(p.peer)&&vacant(w))G.seats[w]=p.peer}
   G.on={};for(const r in G.seats)G.on[r]=!!(G.seats[r]&&by.has(G.seats[r]));
+  {const st=Object.values(G.seats);G.wt=ps.filter(p=>!st.includes(p.peer)).map(p=>clean(p.presence.n,12)||'요원').slice(0,50)}
   if(G.ph!=='lobby'&&G.ph!=='end')for(const r in G.seats){const p=by.get(G.seats[r]);if(!p)continue;const q=p.presence.q;if(!Array.isArray(q))continue;
     for(const a of q.slice().sort((x,y)=>int(x&&x.n)-int(y&&y.n))){if(!a||typeof a!=='object')continue;const n=int(a.n);if(n<=(PROC[p.peer]||0))continue;PROC[p.peer]=n;
       if(typeof a.k==='string'){try{doAction(r,a)}catch(e){console.error(e)}}
@@ -713,7 +714,7 @@ function hostInvite(){
   if(!code){toast('초대 코드는 영문·숫자 6자리입니다 (예: K7Q-2MX)');return}
   if(code===me.code){toast('내 코드입니다. 다른 요원의 코드를 입력하세요');return}
   const id=idOf(code);if(conns.has(id)){toast('이미 합류한 요원입니다');return}
-  invites=invites.filter(x=>x.id!==id);invites.push({code,id,st:'연결 중',k:'wait'});invites=invites.slice(-6);inp.value='';renderLobbyBits();
+  invites=invites.filter(x=>x.id!==id);invites.push({code,id,st:'연결 중',k:'wait'});invites=invites.slice(-30);inp.value='';renderLobbyBits();
   const conn=peer.connect(id,{metadata:{t:'invite',n:me.nick,g:gid},reliable:true});
   conn.on('open',()=>{if(mode!=='host'){conn.close();return}conns.set(id,{conn,pres:{},at:Date.now()});markInvite(id,'합류함','ok');lastPub='';lastPv={};hostTick()});
   conn.on('data',d=>onGuestData(id,conn,d));
@@ -794,7 +795,7 @@ function renderLobbyBits(){
 }
 function hostPanel(){if(mode!=='host')return'';return`<section class="sheet"><span class="lab">호스트 · 초대</span>
   <form id="invF" class="row"><input id="invIn" type="text" maxlength="7" placeholder="ABC-123" class="mono" style="flex:1 1 140px;text-transform:uppercase" aria-label="초대 코드"><button type="submit">초대</button></form>
-  <div id="invList" class="col" style="gap:6px"></div><p class="note">연결이 끊긴 자리는 새로 초대한 요원이 이어받을 수 있습니다.</p></section>`}
+  <div id="invList" class="col" style="gap:6px"></div><p class="note">관전자도 같은 방법으로 초대합니다(인원 제한 없음). 연결이 끊긴 자리는 새로 초대한 사람이 이어받을 수 있습니다.</p></section>`}
 function bindHost(){const f=$('#invF');if(f)f.onsubmit=e=>{e.preventDefault();hostInvite()};renderLobbyBits()}
 function seatCards(){
   const mine=myRole();
@@ -802,13 +803,15 @@ function seatCards(){
     return`<div class="seat ${p?'taken':''} ${mine===r?'mine':''}"><span class="lab">${ROLES[r].n}</span>
     <div style="font-weight:700">${p?`<span class="dot ${on?'on':''}"></span> ${esc(nickOf(p))}${mine===r?' (나)':''}`:'<span class="mute">공석</span>'}</div>
     <div class="note">${ROLES[r].d}</div>${take?`<button class="ghost sm" onclick="wantRole('${r}')">이 역할 맡기</button>`:''}
-    ${mine===r&&V.ph==='lobby'?`<button class="ghost sm" onclick="wantRole('')">자리 비우기</button>`:''}</div>`}).join('')}</div>`;
+    ${mine===r&&V.ph==='lobby'?`<button class="ghost sm" onclick="wantRole('')">자리 비우기</button>`:''}</div>`}).join('')}</div>
+  <div class="row"><span class="lab">관전자 ${(V.wt||[]).length}명 · 인원 제한 없음</span>${(V.wt||[]).map(n=>`<span class="pill dim">${esc(n)}</span>`).join('')}
+   ${V.ph==='lobby'&&mine?`<button class="ghost sm" onclick="wantRole('watch')">관전자로 옮기기</button>`:''}</div>`;
 }
 function renderRoom(app){
   const ready=['fin','inf','spy'].every(r=>V.on[r]);
   app.innerHTML=`<div class="grid"><section class="sheet"><div class="row between"><div><span class="lab">작전실 대기</span><h2>역할을 고르세요</h2></div>
     <button class="ghost" onclick="leaveRoom()">${mode==='host'?'작전실 닫기':'나가기'}</button></div>${seatCards()}
-    ${mode==='host'?`<div class="row"><button class="red" id="startB" ${ready?'':'disabled'}>사전 브리핑 시작</button><span class="note">${ready?'모두 준비됐습니다.':'세 역할이 모두 차면 시작할 수 있습니다.'}</span></div>`:'<p class="note">호스트가 브리핑을 시작할 때까지 기다리세요.</p>'}</section>
+    ${mode==='host'?`<div class="row"><button class="red" id="startB" ${ready?'':'disabled'}>사전 브리핑 시작</button><span class="note">${ready?'모두 준비됐습니다.':'세 역할이 모두 차면 시작할 수 있습니다.'}</span></div>`:'<p class="note">호스트가 브리핑을 시작할 때까지 기다리세요. 역할을 맡지 않으면 관전자로 참여합니다.</p>'}</section>
     <div class="col">${hostPanel()}${chatSheet('대기실 채팅')}</div></div>`;
   const s=$('#startB');if(s)s.onclick=hostStart;bindHost();bindChat();
 }
@@ -847,7 +850,7 @@ function topbar(){
   const role=myRole();
   return`<div class="topbar"><div class="l">${role?ROLES[role].n:'관전'}<div class="note" style="color:inherit;opacity:.7">${esc(me.nick)}</div></div>
    <div class="m">라운드 ${Math.min(V.rd,V.T)}/${V.T}<br><b>${PH[V.ph]}</b> · 완료 ${Object.values(V.rdy||{}).filter(Boolean).length}/3</div>
-   <div class="r"><span class="lab">내 자금</span><br><b>${P?fmt(P.cash):'—'}C</b></div></div>`;
+   <div class="r">${role?`<span class="lab">내 자금</span><br><b>${P?fmt(P.cash):'—'}C</b>`:`<span class="lab">관전 중</span><br><b style="font-size:16px">${(V.wt||[]).length}명 관전</b>`}</div></div>`;
 }
 function meterH(l,v,hot,sub){return`<div class="meter"><span class="lab">${l}</span><span class="v">${v}</span><div class="bar"><i class="${hot?'hot':''}" style="width:${clamp(v,0,100)}%"></i></div><span class="note">${sub}</span></div>`}
 function statusBar(){
@@ -975,13 +978,23 @@ function memoInput(e){clearTimeout(memoT);const v=e.target.value;memoT=setTimeou
 /* ================= 역할 화면 ================= */
 function renderPlay(app){
   const role=myRole();let body='';
-  if(!role)body=`<section class="sheet"><span class="lab">관전</span><p class="mute">맡은 역할이 없습니다. 연결이 끊긴 자리가 있으면 이어받을 수 있습니다.</p>${seatCards()}</section>`;
+  if(!role)body=spectatorUI();
   else if(!P)body=`<section class="sheet"><p class="mute">역할 채널에 연결 중입니다.</p></section>`;
   else if(role==='fin')body=finUI();else if(role==='inf')body=infUI();else body=spyUI();
   const side=role==='inf'?`<div class="grid"><div class="col">${daPanel()}${logSheet()}</div><div class="col">${traceSheet()}${hostPanel()}</div></div>`
     :`<div class="grid"><div class="col">${dossier(false)}${traceSheet()}</div><div class="col">${daPanel()}${logSheet()}${hostPanel()}</div></div>`;
   app.innerHTML=`<div class="col">${topbar()}${statusBar()}${body}${side}</div>`;
   bindHost();bindDA();bindRole();
+}
+/* 관전자 */
+function spectatorUI(){
+  const mk=(name,h,unit)=>{const p=h[h.length-1];const[c,t]=chgOf(h);return`<div class="col" style="gap:2px;min-width:0"><div class="row between"><b>${name}</b><span class="mono">${fmt(p)}${unit}</span></div>${spark(h,300,50)}<span class="chg ${c>=0?'up':'down'}">${t||'—'}</span></div>`};
+  return`<div class="grid"><div class="col">
+   <section class="sheet"><span class="lab">관전석</span><h2>작전을 지켜보는 중</h2>
+    <p class="mute">관전자는 모두에게 공개된 정보(상황판, 사건 파일, 작전 일지, 감찰 로그, 시세)만 봅니다. 메신저 내용과 흑조의 비밀 연락은 엔딩에서 공개됩니다. 연결이 끊긴 자리가 생기면 이어받을 수 있습니다.</p>
+    ${seatCards()}</section>
+  </div><div class="col"><section class="sheet"><span class="lab">시세 · 주식</span><div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">${STOCKS.map((x,i)=>mk(x.n,V.sp[i],'C')).join('')}</div>
+   <span class="lab">시세 · 암호화폐</span><div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">${COINS.map((x,i)=>V.dead[i]?`<div><b>${x.n}</b> <span class="note">상장폐지</span></div>`:mk(x.n,V.cp[i],'C')).join('')}</div></section></div></div>`;
 }
 /* 자금책 */
 function finUI(){
@@ -1152,6 +1165,7 @@ function renderEnd(app){
 $('#rulesBody').innerHTML=`
 <h3>목표</h3><p>셋이 한 팀입니다. 10라운드 안에 흑조의 세 사건 <b>두더지</b>, <b>검은 장부</b>, <b>붉은 정오</b>의 진본 증거를 모아 정보원이 최종 보고서를 냅니다. 보고서 내용과 최종 심문 결과로 엔딩이 갈립니다.</p>
 <h3>입장</h3><ul><li>코드명을 입력하면 초대 코드가 나옵니다. 창을 닫으면 즉시 만료되고, 다시 접속하면 새 코드가 나옵니다.</li><li>호스트가 방을 만들고 두 사람의 코드를 입력하면 자동으로 합류합니다.</li></ul>
+<h3>관전자</h3><p>역할을 맡지 않은 사람은 관전자가 됩니다. 인원 제한은 없고, 초대 코드로 똑같이 초대합니다. 관전자는 공개 정보만 보고, 투표와 행동은 하지 않습니다. 연결이 끊긴 역할 자리는 관전자가 이어받을 수 있습니다.</p>
 <h3>진행</h3><p>시간 제한은 없습니다. 사전 브리핑(감청 없음, 암호 단어 정하기) → 라운드마다 정보 → 전달 → 현장 → 결과 순서이고, 세 사람이 모두 '이 단계 완료'를 눌러야 다음 단계로 넘어갑니다.</p>
 <div class="tbl"><table><thead><tr><th>역할</th><th>할 수 있는 일</th></tr></thead><tbody>
 <tr><td>자금책</td><td>시작 300C, 라운드마다 +100C. 주식 6종(라운드당 최대 ±12%), 코인 3종(정보 단계 중 20초마다, 라운드당 최대 3번 변동, 수수료 2%). 송금은 은행(현장 요원에게 보내면 감청 +8) 또는 코인(추적 없음, 수수료 2%).</td></tr>
